@@ -1,0 +1,34 @@
+# Exclude problematic directories
+.cursor/
+.git/
+.gitignore
+.DS_Store
+
+# Exclude local testing files
+docker-compose.local.yml
+config.local.json
+*.log
+
+# Exclude build artifacts
+*.tar.gz
+!strategies.tar.gz 
+
+# Exclude documentation that's not needed in container
+README.md
+DEPLOYMENT_GUIDE.md
+*.md
+
+# Exclude scripts (they're not needed inside container)
+scripts/
+
+# Exclude backtest results (can be large)
+user_data/backtest_results/
+user_data/strategies/
+user_data/strategies_backup/
+user_data/plot/
+user_data/logs/
+user_data/**/__pycache__/
+user_data/**/*.pyc
+
+# Keep only essential files for the container
+!user_data/config.json

@@ -173,8 +173,9 @@ ENV/
 Thumbs.db 
 
 # ==== Custom ====
+*.csv
 *.txt
-!requirements.txt
+!requirements*.txt
 *.zip
 *.json
 *.lock

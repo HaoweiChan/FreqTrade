@@ -4,6 +4,31 @@
 ![Docker](https://img.shields.io/badge/Docker-Containerized-blue)
 ![GCP](https://img.shields.io/badge/GCP-Cloud%20Deploy-green)
 
+## 🚀 Quick Start - Deploy Your Strategies to GCP
+
+1. **Setup**: Run `scripts/setup-strategies.sh` to prepare your top 20 strategies
+2. **Deploy**: Run `scripts/deploy-gcp.sh` to deploy to Google Cloud Platform  
+3. **Access**: Your freqtrade bot UI at `http://EXTERNAL_IP:8080`
+
+## 📁 Project Structure
+
+```
+freqtrade/
+├── scripts/                    # 🛠️ Deployment scripts
+│   ├── setup-strategies.sh     # Prepare strategy deployment
+│   ├── deploy-gcp.sh          # Deploy to GCP
+│   ├── startup-script.sh      # VM initialization
+│   └── README.md              # Script documentation
+├── user_data/                 # 📊 Your trading configuration
+│   ├── config.json           # Trading settings & API keys
+│   ├── strategies/           # Your 400+ strategy files
+│   ├── data/                # Historical market data
+│   └── logs/                # Trading logs
+├── docker-compose.yml        # 🐳 Docker configuration (auto-generated)
+├── DEPLOYMENT_GUIDE.md       # 📚 Detailed deployment guide
+└── README.md                 # This file
+```
+
 ## Table of Contents
 - [Overview](#overview)
 - [Prerequisites](#prerequisites)
@@ -852,7 +877,7 @@ gcloud compute instances create freqtrade-vm \
   --image-project ubuntu-os-cloud \
   --boot-disk-size 50GB \
   --boot-disk-type pd-standard \
-  --metadata-from-file startup-script=startup-script.sh
+  --metadata-from-file startup-script=scripts/startup-script.sh
 ```
 
 #### Create Startup Script
@@ -1221,3 +1246,29 @@ freqtrade download-data --exchange binance --pairs BTC/USDT --days 7 --timeframe
 ---
 
 **Disclaimer**: This software is for educational purposes only. Always start with dry-run mode and never risk money you cannot afford to lose. Cryptocurrency trading involves significant risk. 
+
+## Accessing the Web UI Securely with IAP
+
+To avoid exposing your Freqtrade instance to the public internet and to save on external IP costs, this deployment uses GCP's Identity-Aware Proxy (IAP) to create a secure tunnel.
+
+### How to Connect:
+
+1.  **Open a New Terminal**: After your deployment completes, open a new terminal window on your local machine.
+
+2.  **Start the IAP Tunnel**: Run the command provided at the end of the deployment script. It will look like this:
+
+    ```bash
+    gcloud compute start-iap-tunnel freqtrade-bot 8080 --zone=asia-east1-b --local-host-port=localhost:8080 --project=oceanic-glazing-466419-v3
+    ```
+
+    This command creates a secure, encrypted tunnel from your local machine's port `8080` to the Freqtrade container running on the GCP VM.
+
+3.  **Access the UI**: Once the tunnel is active, open your web browser and go to:
+
+    **`http://localhost:8080`**
+
+    You will be able to access the Freqtrade UI as if it were running locally.
+
+4.  **Stopping the Tunnel**: To close the connection, simply go back to the terminal where the tunnel is running and press `Ctrl+C`.
+
+This method is highly recommended as it enhances security and is more cost-effective. 
