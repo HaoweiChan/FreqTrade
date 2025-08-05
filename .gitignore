@@ -183,3 +183,8 @@ Thumbs.db
 *feather*
 user_data/strategies/**/*.py
 user_data/strategies_backup/**/*.py
+!user_data/strategies/ichiV1/*
+!user_data/strategies/LookaheadStrategy/*
+!user_data/strategies/Macd/*
+!user_data/strategies/CustomStoplossWithPSAR/*
+!user_data/strategies/MACDCCI/*
