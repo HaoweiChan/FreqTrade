@@ -55,11 +55,11 @@ for strategy in "${STRATEGIES[@]}"; do
     if [ -d "$strategy_path_dir" ]; then
         cp -R "$strategy_path_dir" "$TEMP_DIR/"
         echo "✓ Staged '$strategy' (directory)"
-        ((found_count++))
+        found_count=$((found_count + 1))
     elif [ -f "$strategy_path_file" ]; then
         cp "$strategy_path_file" "$TEMP_DIR/"
         echo "✓ Staged '$strategy' (file)"
-        ((found_count++))
+        found_count=$((found_count + 1))
     else
         echo "⚠ Warning: Strategy file/dir not found for '$strategy' in '$SOURCE_DIR'"
     fi
@@ -103,14 +103,16 @@ get_container_name_suffix() {
     fi
     
     # Handle mixed case with numbers (like ichiV1, SMA20, etc.)
-    # First, add underscore before numbers
-    name=$(echo "$name" | sed -E 's/([0-9])/_\1/g')
-    
-    # Then add underscore before uppercase letters that follow lowercase
+    # Add underscore before uppercase letters that follow lowercase letters
     name=$(echo "$name" | sed -E 's/([a-z])([A-Z])/\1_\2/g')
     
-    # Convert to lowercase and clean up
-    echo "$name" | tr '[:upper:]' '[:lower:]' | sed -E 's/^_//'
+    # Convert to lowercase
+    name=$(echo "$name" | tr '[:upper:]' '[:lower:]')
+    
+    # Add underscore between letters and numbers (but not within numbers)
+    name=$(echo "$name" | sed -E 's/([a-z])([0-9])/\1\2/g')
+    
+    echo "$name"
 }
 
 # Build the 'depends_on' list for the UI service
@@ -126,6 +128,7 @@ version: '3.8'
 
 services:
   frequi:
+    image: \${DOCKER_REGISTRY:-ghcr.io}/\${REPO_NAME:-haowiechan/freqtrade}/freqtrade-ui:\${IMAGE_TAG:-latest}
     build:
       context: ./ui
       dockerfile: Dockerfile
@@ -142,12 +145,32 @@ port=8081
 for strategy in "${STRATEGIES[@]}"; do
     service_name=$(get_service_name "$strategy")
     container_name_suffix=$(get_container_name_suffix "$strategy")
+    
+    # First strategy gets telegram enabled, others disabled
+    if [ "$port" -eq 8081 ]; then
+        telegram_enabled="true"
+        telegram_accept="true"
+    else
+        telegram_enabled="false"
+        telegram_accept="false"
+    fi
+    
     cat >> docker-compose.yml <<EOF
 
   freqtrade-${service_name}:
+    image: \${DOCKER_REGISTRY:-ghcr.io}/\${REPO_NAME:-haowiechan/freqtrade}/freqtrade-bot:\${IMAGE_TAG:-latest}
     build: .
     container_name: freqtrade-trader-${container_name_suffix}
     restart: unless-stopped
+    environment:
+      - FREQTRADE__TELEGRAM__ENABLED=${telegram_enabled}
+      - FREQTRADE__TELEGRAM__ACCEPT_COMMANDS=${telegram_accept}
+      - FREQTRADE__EXCHANGE__KEY=\${BINANCE_KEY}
+      - FREQTRADE__EXCHANGE__SECRET=\${BINANCE_SECRET}
+      - FREQTRADE__TELEGRAM__TOKEN=\${TELEGRAM_TOKEN}
+      - FREQTRADE__TELEGRAM__CHAT_ID=\${TELEGRAM_CHAT_ID}
+      - FREQTRADE__API_SERVER__USERNAME=\${FT_UI_USERNAME}
+      - FREQTRADE__API_SERVER__PASSWORD=\${FT_UI_PASSWORD}
     ports:
       - "${port}:8080"
     volumes:

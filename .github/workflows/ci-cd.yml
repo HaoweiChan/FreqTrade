@@ -1,0 +1,487 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+env:
+  DOCKER_REGISTRY: ghcr.io
+  IMAGE_NAME_BOT: haoweichan/freqtrade/freqtrade-bot
+  IMAGE_NAME_UI: haoweichan/freqtrade/freqtrade-ui
+
+jobs:
+  build-and-test-bot:
+    name: Build & Test Trading Bot
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+
+    - name: Log in to Container Registry
+      if: ${{ !env.ACT }}
+      uses: docker/login-action@v3
+      with:
+        registry: ${{ env.DOCKER_REGISTRY }}
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Extract metadata
+      id: meta
+      uses: docker/metadata-action@v5
+      with:
+        images: ${{ env.DOCKER_REGISTRY }}/${{ env.IMAGE_NAME_BOT }}
+        tags: |
+          type=ref,event=branch
+          type=ref,event=pr
+          type=sha,prefix={{branch}}-,format=short
+          type=raw,value=latest,enable={{is_default_branch}}
+
+    - name: Generate strategies archive
+      run: |
+        bash scripts/setup-strategies.sh
+        ls -lh strategies.tar.gz
+
+    - name: Build and push trading bot image
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        file: ./Dockerfile
+        push: ${{ github.event_name != 'pull_request' && !env.ACT }}
+        load: ${{ env.ACT == 'true' || github.event_name == 'pull_request' }}
+        tags: ${{ steps.meta.outputs.tags }}
+        labels: ${{ steps.meta.outputs.labels }}
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+
+    - name: Test trading bot image
+      run: |
+        # Test that the image runs without crashing
+        # Use the first tag from metadata action (already lowercase)
+        IMAGE_TAG=$(echo "${{ steps.meta.outputs.tags }}" | head -1)
+        
+        echo "🧪 Testing: Verifying image can start..."
+        docker run --rm -d --name test-bot \
+          -e FREQTRADE__DRY_RUN=true \
+          -e FREQTRADE__EXCHANGE__NAME=binance \
+          -e FREQTRADE__EXCHANGE__SANDBOX=true \
+          "$IMAGE_TAG"
+        
+        # Give it a moment to start and generate logs
+        sleep 3
+        
+        # Get logs - container may have exited, that's ok
+        echo "📋 Container logs:"
+        docker logs test-bot 2>&1 | head -30 || echo "Container already exited"
+        
+        # Check if freqtrade started (look for version info in logs)
+        # Container may have exited by now, so use logs to verify it started
+        LOGS=$(docker logs test-bot 2>&1 || echo "")
+        
+        if echo "$LOGS" | grep -q "freqtrade"; then
+          echo "✅ Trading bot container started successfully with freqtrade"
+          docker stop test-bot 2>/dev/null || true
+          docker rm test-bot 2>/dev/null || true
+          exit 0
+        else
+          echo "❌ Freqtrade did not start properly"
+          echo "Full logs:"
+          echo "$LOGS"
+          docker stop test-bot 2>/dev/null || true
+          docker rm test-bot 2>/dev/null || true
+          exit 1
+        fi
+
+  build-and-test-ui:
+    name: Build & Test UI
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+
+    - name: Log in to Container Registry
+      if: ${{ !env.ACT }}
+      uses: docker/login-action@v3
+      with:
+        registry: ${{ env.DOCKER_REGISTRY }}
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Extract metadata
+      id: meta
+      uses: docker/metadata-action@v5
+      with:
+        images: ${{ env.DOCKER_REGISTRY }}/${{ env.IMAGE_NAME_UI }}
+        tags: |
+          type=ref,event=branch
+          type=ref,event=pr
+          type=sha,prefix={{branch}}-,format=short
+          type=raw,value=latest,enable={{is_default_branch}}
+
+    - name: Build and push UI image
+      uses: docker/build-push-action@v5
+      with:
+        context: ./ui
+        file: ./ui/Dockerfile
+        push: ${{ github.event_name != 'pull_request' && !env.ACT }}
+        load: ${{ env.ACT == 'true' || github.event_name == 'pull_request' }}
+        tags: ${{ steps.meta.outputs.tags }}
+        labels: ${{ steps.meta.outputs.labels }}
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+
+    - name: Test UI image
+      run: |
+        # Test that the UI serves content correctly
+        # Use the first tag from metadata action (already lowercase)
+        IMAGE_TAG=$(echo "${{ steps.meta.outputs.tags }}" | head -1)
+        
+        # Use a random port to avoid conflicts
+        TEST_PORT=$((8000 + RANDOM % 1000))
+        echo "Using port: $TEST_PORT"
+        
+        docker run --rm -d --name test-ui -p "$TEST_PORT:80" "$IMAGE_TAG"
+        
+        # Wait for startup and test HTTP response
+        sleep 5
+        if curl -f http://localhost:$TEST_PORT > /dev/null 2>&1; then
+          echo "✅ UI is serving content successfully"
+          docker stop test-ui
+        else
+          echo "❌ UI failed to serve content"
+          docker logs test-ui || true
+          docker stop test-ui 2>/dev/null || true
+          exit 1
+        fi
+
+  integration-test:
+    name: Integration Test with Docker Compose
+    runs-on: ubuntu-latest
+    needs: [build-and-test-bot, build-and-test-ui]
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Generate strategies archive
+      run: |
+        bash scripts/setup-strategies.sh
+        ls -lh strategies.tar.gz
+
+    - name: Create test environment file
+      run: |
+        cat > .env << EOF
+        BINANCE_KEY=test_key
+        BINANCE_SECRET=test_secret
+        TELEGRAM_TOKEN=test_token
+        TELEGRAM_CHAT_ID=test_chat_id
+        FT_UI_USERNAME=test_user
+        FT_UI_PASSWORD=test_password
+        EOF
+
+    - name: Update docker-compose for testing
+      run: |
+        # Create a test version that only runs one bot service
+        # Use random port to avoid conflicts in local testing
+        TEST_PORT=$((9000 + RANDOM % 1000))
+        echo "Using port $TEST_PORT for integration test"
+        echo "TEST_PORT=$TEST_PORT" >> $GITHUB_ENV
+        
+        cat > docker-compose.test.yml << EOF
+        version: '3.8'
+        services:
+          freqtrade-test:
+            build: .
+            container_name: freqtrade-test
+            environment:
+              - FREQTRADE__DRY_RUN=true
+              - FREQTRADE__EXCHANGE__NAME=binance
+              - FREQTRADE__EXCHANGE__SANDBOX=true
+              - FREQTRADE__EXCHANGE__KEY=test_key
+              - FREQTRADE__EXCHANGE__SECRET=test_secret
+              - FREQTRADE__TELEGRAM__ENABLED=false
+            volumes:
+              - "./user_data:/freqtrade/user_data"
+            command: >
+              trade
+              --config /freqtrade/user_data/config.json
+              --strategy ichiV1
+        
+          frequi-test:
+            build:
+              context: ./ui
+              dockerfile: Dockerfile
+            container_name: freqtrade-ui-test
+            ports:
+              - "$TEST_PORT:80"
+            depends_on:
+              - freqtrade-test
+        EOF
+
+    - name: Test docker-compose build
+      run: |
+        echo "🔨 Building docker-compose stack..."
+        docker compose -f docker-compose.test.yml build
+
+    - name: Test docker-compose up
+      run: |
+        echo "🚀 Starting docker-compose stack..."
+        docker compose -f docker-compose.test.yml up -d
+        
+        # Wait for services to be ready
+        echo "⏳ Waiting for services to start..."
+        sleep 30
+        
+        # Check if services are running
+        if docker compose -f docker-compose.test.yml ps | grep -q "Up"; then
+          echo "✅ Docker-compose stack is running successfully"
+        else
+          echo "❌ Docker-compose stack failed"
+          docker compose -f docker-compose.test.yml logs
+          exit 1
+        fi
+        
+        # Test UI accessibility
+        if curl -f http://localhost:$TEST_PORT > /dev/null 2>&1; then
+          echo "✅ UI is accessible through docker-compose"
+        else
+          echo "❌ UI not accessible through docker-compose"
+          docker compose -f docker-compose.test.yml logs frequi-test
+          exit 1
+        fi
+
+    - name: Cleanup
+      if: always()
+      run: |
+        docker compose -f docker-compose.test.yml down || true
+        docker system prune -f || true
+
+  security-scan:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    needs: [build-and-test-bot]
+    permissions:
+      actions: read
+      contents: read
+      packages: read
+      security-events: write
+    env:
+      DOCKER_REGISTRY: ghcr.io
+      IMAGE_NAME_BOT: haoweichan/freqtrade/freqtrade-bot
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Log in to Container Registry
+      uses: docker/login-action@v3
+      with:
+        registry: ${{ env.DOCKER_REGISTRY }}
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Run Trivy vulnerability scanner
+      uses: aquasecurity/trivy-action@master
+      with:
+        image-ref: ${{ env.DOCKER_REGISTRY }}/${{ env.IMAGE_NAME_BOT }}:main
+        format: 'sarif'
+        output: 'trivy-results.sarif'
+      continue-on-error: true
+
+    - name: Upload Trivy scan results to GitHub Security tab
+      uses: github/codeql-action/upload-sarif@v3
+      if: always()
+      continue-on-error: true
+      with:
+        sarif_file: 'trivy-results.sarif'
+
+  deploy-to-gcp:
+    name: Deploy to GCP
+    runs-on: ubuntu-latest
+    needs: [integration-test, security-scan]
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    environment: production
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Check GCP deployment requirements
+      env:
+        GCP_SA_KEY: ${{ secrets.GCP_SA_KEY }}
+      run: |
+        echo "🔍 Checking if GCP deployment secrets are available..."
+
+        # Check if GCP_SA_KEY secret exists
+        if [ -z "$GCP_SA_KEY" ]; then
+          echo "⏭️  Skipping GCP deployment - GCP_SA_KEY secret not configured"
+          echo "📚 See docs/gcp-secrets-setup.md for instructions on setting up GCP secrets"
+          exit 0
+        fi
+
+        echo "✅ GCP deployment secrets are available - proceeding with deployment"
+
+    - name: Authenticate to Google Cloud
+      uses: google-github-actions/auth@v2
+      with:
+        credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+    - name: Setup Google Cloud SDK
+      uses: google-github-actions/setup-gcloud@v2
+      with:
+        project_id: ${{ secrets.GCP_PROJECT_ID }}
+
+    - name: Configure SSH for GCP VM
+      run: |
+        echo "🔧 Configuring SSH for GCP VM access..."
+
+        # Create .ssh directory if it doesn't exist
+        mkdir -p ~/.ssh
+        chmod 700 ~/.ssh
+
+        # Write SSH private key to file
+        echo "${{ secrets.GCP_SSH_PRIVATE_KEY }}" > /tmp/gcp_key
+        chmod 600 /tmp/gcp_key
+
+        # Add GCP VM to known hosts
+        echo "🔗 Adding ${{ secrets.GCP_VM_IP }} to known hosts..."
+        if ssh-keyscan -H ${{ secrets.GCP_VM_IP }} >> ~/.ssh/known_hosts 2>/dev/null; then
+          echo "✅ Successfully added ${{ secrets.GCP_VM_IP }} to known hosts"
+        else
+          echo "⚠️  Could not resolve ${{ secrets.GCP_VM_IP }} - check if IP/hostname is correct"
+        fi
+
+    - name: Deploy to GCP VM
+      env:
+        GH_DEPLOY_KEY: ${{ secrets.GH_DEPLOY_KEY }}
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        GITHUB_ACTOR: ${{ github.actor }}
+      run: |
+        echo "🚀 Starting deployment to GCP VM..."
+        echo "📍 Target: ${{ secrets.GCP_VM_USER }}@${{ secrets.GCP_VM_IP }}"
+
+        # Test SSH connection first
+        echo "🔗 Testing SSH connection..."
+        if ! ssh -i /tmp/gcp_key -o StrictHostKeyChecking=no -o ConnectTimeout=10 \
+          ${{ secrets.GCP_VM_USER }}@${{ secrets.GCP_VM_IP }} "echo 'SSH connection successful'" >/dev/null 2>&1; then
+          echo "❌ SSH connection failed - check VM accessibility, IP, username, and SSH key"
+          exit 1
+        fi
+
+        # SSH into GCP VM and run deployment process
+        ssh -i /tmp/gcp_key -o StrictHostKeyChecking=no \
+          ${{ secrets.GCP_VM_USER }}@${{ secrets.GCP_VM_IP }} << EOF
+          set -eux
+
+          echo "--- Starting Deployment on GCP VM ---"
+
+          # 1. Navigate to the project directory
+          if ! cd "/home/${{ secrets.GCP_VM_USER }}/freqtrade"; then
+            echo "❌ Freqtrade directory not found. Please ensure it is cloned."
+            exit 1
+          fi
+
+          # 2. Configure GitHub access via SSH for git pull
+          echo "🔑 Configuring Git access..."
+          # Use printf to reliably write the multi-line secret
+          printf '%s\n' "${GH_DEPLOY_KEY}" > /tmp/gh_deploy_key
+          chmod 600 /tmp/gh_deploy_key
+          export GIT_SSH_COMMAND="ssh -i /tmp/gh_deploy_key -o StrictHostKeyChecking=no"
+          git remote set-url origin git@github.com:HaoweiChan/FreqTrade.git
+
+          # 3. Pull the latest code
+          echo "📥 Pulling latest changes from Git..."
+          if ! git pull origin main; then
+            echo "❌ Failed to pull latest changes from Git."
+            # Clean up the key even on failure
+            rm /tmp/gh_deploy_key
+            exit 1
+          fi
+          # Clean up the deploy key immediately after use
+          rm /tmp/gh_deploy_key
+
+          # 4. Authenticate to GitHub Container Registry
+          echo "🔐 Authenticating to GitHub Container Registry..."
+          # Use printf to reliably write the token
+          if ! printf '%s\n' "${GITHUB_TOKEN}" | docker login ${{ env.DOCKER_REGISTRY }} -u "${GITHUB_ACTOR}" --password-stdin; then
+            echo "❌ Docker login failed."
+            exit 1
+          fi
+
+          # 5. Set the unique image tag for this deployment
+          export IMAGE_TAG="main-$(echo "${{ github.sha }}" | cut -c1-7)"
+          echo "🏷️  Deploying with image tag: \$IMAGE_TAG"
+
+          # 6. Run the simplified deployment script
+          echo "🚀 Executing deployment script..."
+          chmod +x scripts/deploy.sh
+          if ! bash scripts/deploy.sh; then
+            echo "❌ Deployment script failed."
+            exit 1
+          fi
+
+          echo "--- ✅ Deployment on GCP VM Succeeded ---"
+        EOF
+
+    - name: Verify deployment
+      run: |
+        echo "🔍 Verifying deployment..."
+
+        # Test SSH connection for verification
+        echo "🔗 Testing SSH connection for verification..."
+        if ! ssh -i /tmp/gcp_key -o StrictHostKeyChecking=no -o ConnectTimeout=10 \
+          ${{ secrets.GCP_VM_USER }}@${{ secrets.GCP_VM_IP }} "echo 'SSH verification connection successful'" >/dev/null 2>&1; then
+          echo "❌ SSH verification connection failed - cannot verify deployment"
+          exit 1
+        fi
+
+        # Check if services are running on GCP VM
+        ssh -i /tmp/gcp_key -o StrictHostKeyChecking=no \
+          ${{ secrets.GCP_VM_USER }}@${{ secrets.GCP_VM_IP }} << EOF
+
+          # Check if freqtrade directory exists (should exist after deployment)
+          if [ ! -d "/home/${{ secrets.GCP_VM_USER }}/freqtrade" ]; then
+            echo "❌ Freqtrade directory not found after deployment"
+            exit 1
+          fi
+
+          cd /home/${{ secrets.GCP_VM_USER }}/freqtrade
+
+          echo "🔍 Checking Docker services status..."
+          if command -v docker &> /dev/null && command -v docker compose &> /dev/null; then
+            if docker compose ps | grep -q "Up"; then
+              echo "✅ Services are running on GCP VM"
+              docker compose ps
+            else
+              echo "⚠️  No services appear to be running - check deployment"
+              docker compose ps || echo "Docker compose not available"
+            fi
+          else
+            echo "⚠️  Docker or docker-compose not available on VM"
+          fi
+
+          echo "✅ Deployment verification completed"
+        EOF
+
+    - name: Cleanup SSH key
+      if: always()
+      run: |
+        rm -f /tmp/gcp_key

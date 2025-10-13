@@ -133,6 +133,8 @@ ehthumbs_vista.db
 
 # Environment variables
 .env
+.env.*
+!.env.example
 
 # Python
 __pycache__/
@@ -173,6 +175,7 @@ ENV/
 Thumbs.db 
 
 # ==== Custom ====
+*.gz
 *.csv
 *.txt
 !requirements*.txt
@@ -181,8 +184,10 @@ Thumbs.db
 *.lock
 *.sqlite*
 *feather*
+.playwright-mcp
 user_data/strategies/**/*.py
 user_data/strategies_backup/**/*.py
+!user_data/config.json
 !user_data/strategies/ichiV1/*
 !user_data/strategies/LookaheadStrategy/*
 !user_data/strategies/Macd/*
