@@ -439,7 +439,15 @@ jobs:
           export IMAGE_TAG="main-$(echo "${{ github.sha }}" | cut -c1-7)"
           echo "🏷️  Deploying with image tag: \$IMAGE_TAG"
 
-          # 6. Run the simplified deployment script
+          # 6. Set per-bot dry-run control (defaults to true for safety)
+          export ICHI_DRY_RUN="${{ secrets.ICHI_DRY_RUN || 'true' }}"
+          export LOOKAHEAD_DRY_RUN="${{ secrets.LOOKAHEAD_DRY_RUN || 'true' }}"
+          export MACD_DRY_RUN="${{ secrets.MACD_DRY_RUN || 'true' }}"
+          export PSAR_DRY_RUN="${{ secrets.PSAR_DRY_RUN || 'true' }}"
+          export MACDCCI_DRY_RUN="${{ secrets.MACDCCI_DRY_RUN || 'true' }}"
+          echo "🎯 Dry-run settings: ICHI=\$ICHI_DRY_RUN, MACD=\$MACD_DRY_RUN, PSAR=\$PSAR_DRY_RUN, MACDCCI=\$MACDCCI_DRY_RUN, LOOKAHEAD=\$LOOKAHEAD_DRY_RUN"
+
+          # 7. Run the simplified deployment script
           echo "🚀 Executing deployment script..."
           chmod +x scripts/deploy.sh
           if ! bash scripts/deploy.sh; then
