@@ -23,9 +23,10 @@ services:
   freqtrade-ichiv1:
     image: ${DOCKER_REGISTRY:-ghcr.io}/haoweichan/freqtrade/freqtrade-bot:${IMAGE_TAG:-latest}
     build: .
-    container_name: freqtrade-trader-ichi_v1
+    container_name: freqtrade-trader-ichi_v1-DRYRUN  # Clear mode indicator
     restart: unless-stopped
     environment:
+      - FREQTRADE__DRY_RUN=${ICHI_DRY_RUN:-true}  # Per-bot dry-run control
       - FREQTRADE__TELEGRAM__ENABLED=true
       - FREQTRADE__TELEGRAM__ACCEPT_COMMANDS=true
       - FREQTRADE__EXCHANGE__KEY=${BINANCE_KEY}
@@ -46,9 +47,10 @@ services:
   freqtrade-lookaheadstrategy:
     image: ${DOCKER_REGISTRY:-ghcr.io}/haoweichan/freqtrade/freqtrade-bot:${IMAGE_TAG:-latest}
     build: .
-    container_name: freqtrade-trader-lookahead_strategy
+    container_name: freqtrade-trader-lookahead_strategy-DRYRUN  # Clear mode indicator
     restart: unless-stopped
     environment:
+      - FREQTRADE__DRY_RUN=${LOOKAHEAD_DRY_RUN:-true}  # Per-bot dry-run control
       - FREQTRADE__TELEGRAM__ENABLED=false
       - FREQTRADE__TELEGRAM__ACCEPT_COMMANDS=false
       - FREQTRADE__EXCHANGE__KEY=${BINANCE_KEY}
@@ -69,9 +71,10 @@ services:
   freqtrade-macd:
     image: ${DOCKER_REGISTRY:-ghcr.io}/haoweichan/freqtrade/freqtrade-bot:${IMAGE_TAG:-latest}
     build: .
-    container_name: freqtrade-trader-macd
+    container_name: freqtrade-trader-macd-DRYRUN  # Clear mode indicator
     restart: unless-stopped
     environment:
+      - FREQTRADE__DRY_RUN=${MACD_DRY_RUN:-true}  # Per-bot dry-run control
       - FREQTRADE__TELEGRAM__ENABLED=false
       - FREQTRADE__TELEGRAM__ACCEPT_COMMANDS=false
       - FREQTRADE__EXCHANGE__KEY=${BINANCE_KEY}
@@ -92,9 +95,10 @@ services:
   freqtrade-customstoplosswithpsar:
     image: ${DOCKER_REGISTRY:-ghcr.io}/haoweichan/freqtrade/freqtrade-bot:${IMAGE_TAG:-latest}
     build: .
-    container_name: freqtrade-trader-custom_stoploss_with_psar
+    container_name: freqtrade-trader-custom_stoploss_with_psar-DRYRUN  # Clear mode indicator
     restart: unless-stopped
     environment:
+      - FREQTRADE__DRY_RUN=${PSAR_DRY_RUN:-true}  # Per-bot dry-run control
       - FREQTRADE__TELEGRAM__ENABLED=false
       - FREQTRADE__TELEGRAM__ACCEPT_COMMANDS=false
       - FREQTRADE__EXCHANGE__KEY=${BINANCE_KEY}
@@ -115,9 +119,10 @@ services:
   freqtrade-macdcci:
     image: ${DOCKER_REGISTRY:-ghcr.io}/haoweichan/freqtrade/freqtrade-bot:${IMAGE_TAG:-latest}
     build: .
-    container_name: freqtrade-trader-macdcci
+    container_name: freqtrade-trader-macdcci-DRYRUN  # Clear mode indicator
     restart: unless-stopped
     environment:
+      - FREQTRADE__DRY_RUN=${MACDCCI_DRY_RUN:-true}  # Per-bot dry-run control
       - FREQTRADE__TELEGRAM__ENABLED=false
       - FREQTRADE__TELEGRAM__ACCEPT_COMMANDS=false
       - FREQTRADE__EXCHANGE__KEY=${BINANCE_KEY}
