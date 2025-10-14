@@ -6,6 +6,9 @@ services:
     build:
       context: ./ui
       dockerfile: Dockerfile
+      args:
+        FT_UI_USERNAME: ${FT_UI_USERNAME:-admin}
+        FT_UI_PASSWORD: ${FT_UI_PASSWORD:-admin123}
     container_name: freqtrade-ui
     restart: unless-stopped
     ports:
