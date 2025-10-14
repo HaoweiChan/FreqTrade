@@ -193,3 +193,15 @@ user_data/strategies_backup/**/*.py
 !user_data/strategies/Macd/*
 !user_data/strategies/CustomStoplossWithPSAR/*
 !user_data/strategies/MACDCCI/*
+
+# Per-strategy user_data directories
+!user_data/ichi/config.json
+!user_data/lookahead/config.json
+!user_data/macd/config.json
+!user_data/psar/config.json
+!user_data/macdcci/config.json
+user_data/*/logs/
+user_data/*/*.sqlite*
+user_data/*/hyperopt_results/
+user_data/*/backtest_results/
+user_data/*/plot/
