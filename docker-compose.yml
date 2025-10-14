@@ -51,8 +51,8 @@ services:
     restart: unless-stopped
     environment:
       - FREQTRADE__DRY_RUN=${LOOKAHEAD_DRY_RUN:-true}  # Per-bot dry-run control
-      - FREQTRADE__TELEGRAM__ENABLED=false
-      - FREQTRADE__TELEGRAM__ACCEPT_COMMANDS=false
+      - FREQTRADE__TELEGRAM__ENABLED=true  # Enable Telegram notifications
+      - FREQTRADE__TELEGRAM__ACCEPT_COMMANDS=true  # Allow Telegram commands
       - FREQTRADE__EXCHANGE__KEY=${BINANCE_KEY}
       - FREQTRADE__EXCHANGE__SECRET=${BINANCE_SECRET}
       - FREQTRADE__TELEGRAM__TOKEN=${TELEGRAM_TOKEN}
@@ -75,8 +75,8 @@ services:
     restart: unless-stopped
     environment:
       - FREQTRADE__DRY_RUN=${MACD_DRY_RUN:-true}  # Per-bot dry-run control
-      - FREQTRADE__TELEGRAM__ENABLED=false
-      - FREQTRADE__TELEGRAM__ACCEPT_COMMANDS=false
+      - FREQTRADE__TELEGRAM__ENABLED=true  # Enable Telegram notifications
+      - FREQTRADE__TELEGRAM__ACCEPT_COMMANDS=true  # Allow Telegram commands
       - FREQTRADE__EXCHANGE__KEY=${BINANCE_KEY}
       - FREQTRADE__EXCHANGE__SECRET=${BINANCE_SECRET}
       - FREQTRADE__TELEGRAM__TOKEN=${TELEGRAM_TOKEN}
@@ -99,8 +99,8 @@ services:
     restart: unless-stopped
     environment:
       - FREQTRADE__DRY_RUN=${PSAR_DRY_RUN:-true}  # Per-bot dry-run control
-      - FREQTRADE__TELEGRAM__ENABLED=false
-      - FREQTRADE__TELEGRAM__ACCEPT_COMMANDS=false
+      - FREQTRADE__TELEGRAM__ENABLED=true  # Enable Telegram notifications
+      - FREQTRADE__TELEGRAM__ACCEPT_COMMANDS=true  # Allow Telegram commands
       - FREQTRADE__EXCHANGE__KEY=${BINANCE_KEY}
       - FREQTRADE__EXCHANGE__SECRET=${BINANCE_SECRET}
       - FREQTRADE__TELEGRAM__TOKEN=${TELEGRAM_TOKEN}
@@ -123,8 +123,8 @@ services:
     restart: unless-stopped
     environment:
       - FREQTRADE__DRY_RUN=${MACDCCI_DRY_RUN:-true}  # Per-bot dry-run control
-      - FREQTRADE__TELEGRAM__ENABLED=false
-      - FREQTRADE__TELEGRAM__ACCEPT_COMMANDS=false
+      - FREQTRADE__TELEGRAM__ENABLED=true  # Enable Telegram notifications
+      - FREQTRADE__TELEGRAM__ACCEPT_COMMANDS=true  # Allow Telegram commands
       - FREQTRADE__EXCHANGE__KEY=${BINANCE_KEY}
       - FREQTRADE__EXCHANGE__SECRET=${BINANCE_SECRET}
       - FREQTRADE__TELEGRAM__TOKEN=${TELEGRAM_TOKEN}
