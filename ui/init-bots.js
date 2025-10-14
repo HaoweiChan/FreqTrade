@@ -1,11 +1,15 @@
 // Auto-register bots into FreqUI on page load and prefill login details.
 (function () {
+  // Dynamically determine the base URL using the current hostname
+  // This works regardless of whether accessed via localhost, IP, or domain
+  const baseUrl = `${window.location.protocol}//${window.location.hostname}`;
+  
   const bots = [
-    { name: 'freqtrade-trader-ichi_v_1', url: 'http://localhost:8081' },
-    { name: 'freqtrade-trader-lookahead_strategy', url: 'http://localhost:8082' },
-    { name: 'freqtrade-trader-macd', url: 'http://localhost:8083' },
-    { name: 'freqtrade-trader-custom_stoploss_with_psar', url: 'http://localhost:8084' },
-    { name: 'freqtrade-trader-macdcci', url: 'http://localhost:8085' },
+    { name: 'freqtrade-trader-ichi_v_1', url: `${baseUrl}:8081` },
+    { name: 'freqtrade-trader-lookahead_strategy', url: `${baseUrl}:8082` },
+    { name: 'freqtrade-trader-macd', url: `${baseUrl}:8083` },
+    { name: 'freqtrade-trader-custom_stoploss_with_psar', url: `${baseUrl}:8084` },
+    { name: 'freqtrade-trader-macdcci', url: `${baseUrl}:8085` },
   ];
 
   // Expose for UI components that might read this
@@ -22,7 +26,7 @@
       const desired = {
         botName: b.name,
         apiUrl: b.url,
-        username: 'fq',
+        username: '__FT_UI_USERNAME__',
         accessToken: current.accessToken || '',
         refreshToken: current.refreshToken || '',
         autoRefresh: true,
@@ -50,7 +54,7 @@
     try {
       const storeKey = 'ftAuthLoginInfo';
       const store = JSON.parse(localStorage.getItem(storeKey) || '{}');
-      const creds = 'Basic ' + btoa('fq:fq');
+      const creds = 'Basic ' + btoa('__FT_UI_USERNAME__:__FT_UI_PASSWORD__');
       let updated = false;
       await Promise.all(
         bots.map(async (b, idx) => {

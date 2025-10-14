@@ -61,7 +61,7 @@
         "verbosity": "error",
         "enable_openapi": false,
         "jwt_secret_key": "f92361e82e2336fea9353d359d07bd89228375640777e3badd45e832fb9ddc03",
-        "CORS_origins": ["http://localhost:8080"],
+        "CORS_origins": ["http://localhost:8080", "http://104.199.142.182:8080"],
         "username": "fq",
         "password": "fq"
     },
