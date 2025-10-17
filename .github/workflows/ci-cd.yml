@@ -151,7 +151,7 @@ jobs:
 
     - name: Test UI image
       run: |
-        # Test that the UI serves content correctly
+        # Test that the UI serves content correctly with authentication
         # Use the first tag from metadata action (already lowercase)
         IMAGE_TAG=$(echo "${{ steps.meta.outputs.tags }}" | head -1)
         
@@ -163,11 +163,23 @@ jobs:
         
         # Wait for startup and test HTTP response
         sleep 5
-        if curl -f http://localhost:$TEST_PORT > /dev/null 2>&1; then
-          echo "✅ UI is serving content successfully"
+        
+        # Test without credentials (should get 401)
+        if curl -s -o /dev/null -w "%{http_code}" http://localhost:$TEST_PORT | grep -q "401"; then
+          echo "✅ Authentication is working (401 without credentials)"
+        else
+          echo "❌ Authentication is not working as expected"
+          docker logs test-ui || true
+          docker stop test-ui 2>/dev/null || true
+          exit 1
+        fi
+        
+        # Test with credentials (should get 200)
+        if curl -f -u admin:admin123 http://localhost:$TEST_PORT > /dev/null 2>&1; then
+          echo "✅ UI is serving content successfully with authentication"
           docker stop test-ui
         else
-          echo "❌ UI failed to serve content"
+          echo "❌ UI failed to serve content with credentials"
           docker logs test-ui || true
           docker stop test-ui 2>/dev/null || true
           exit 1
