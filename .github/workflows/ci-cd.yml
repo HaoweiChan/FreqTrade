@@ -275,11 +275,23 @@ jobs:
           exit 1
         fi
         
-        # Test UI accessibility
-        if curl -f http://localhost:$TEST_PORT > /dev/null 2>&1; then
-          echo "✅ UI is accessible through docker-compose"
+        # Test UI accessibility with authentication
+        echo "🔐 Testing UI authentication..."
+        HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:$TEST_PORT)
+        
+        if [ "$HTTP_CODE" = "401" ]; then
+          echo "✅ UI authentication is working (401 without credentials)"
+          
+          # Test with credentials
+          if curl -f -u test_user:test_password http://localhost:$TEST_PORT > /dev/null 2>&1; then
+            echo "✅ UI is accessible with credentials through docker-compose"
+          else
+            echo "❌ UI not accessible with credentials through docker-compose"
+            docker compose -f docker-compose.test.yml logs frequi-test
+            exit 1
+          fi
         else
-          echo "❌ UI not accessible through docker-compose"
+          echo "❌ UI authentication not working (got HTTP $HTTP_CODE instead of 401)"
           docker compose -f docker-compose.test.yml logs frequi-test
           exit 1
         fi
