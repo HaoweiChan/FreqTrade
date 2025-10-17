@@ -38,23 +38,18 @@ echo -e "${GREEN}Step 2: Pulling latest images from registry...${NC}"
 docker-compose pull
 echo ""
 
-echo -e "${GREEN}Step 3: Rebuilding UI with latest code changes...${NC}"
-# Rebuild UI without cache to ensure init-bots.js changes are applied
-docker-compose build --no-cache frequi
-echo ""
-
-echo -e "${GREEN}Step 4: Starting services...${NC}"
-# Start all services
+echo -e "${GREEN}Step 3: Starting services with pulled images...${NC}"
+# Start all services using pulled images (no rebuild)
 docker-compose up -d
 echo ""
 
-echo -e "${GREEN}Step 5: Verifying deployment status...${NC}"
+echo -e "${GREEN}Step 4: Verifying deployment status...${NC}"
 # Wait for services to initialize
 sleep 15
 docker-compose ps
 echo ""
 
-echo -e "${GREEN}Step 6: Cleaning up old Docker images...${NC}"
+echo -e "${GREEN}Step 5: Cleaning up old Docker images...${NC}"
 docker image prune -f
 echo ""
 
