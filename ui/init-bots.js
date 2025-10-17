@@ -5,11 +5,11 @@
   const baseUrl = `${window.location.protocol}//${window.location.hostname}`;
   
   const bots = [
-    { name: 'freqtrade-trader-ichi_v_1', url: `${baseUrl}:8081` },
-    { name: 'freqtrade-trader-lookahead_strategy', url: `${baseUrl}:8082` },
-    { name: 'freqtrade-trader-macd', url: `${baseUrl}:8083` },
-    { name: 'freqtrade-trader-custom_stoploss_with_psar', url: `${baseUrl}:8084` },
-    { name: 'freqtrade-trader-macdcci', url: `${baseUrl}:8085` },
+    { name: 'freqtrade-trader-ichi_v_1', url: `${baseUrl}:8080/api/ichiv1` },
+    { name: 'freqtrade-trader-lookahead_strategy', url: `${baseUrl}:8080/api/lookaheadstrategy` },
+    { name: 'freqtrade-trader-macd', url: `${baseUrl}:8080/api/macd` },
+    { name: 'freqtrade-trader-custom_stoploss_with_psar', url: `${baseUrl}:8080/api/customstoplosswithpsar` },
+    { name: 'freqtrade-trader-macdcci', url: `${baseUrl}:8080/api/macdcci` },
   ];
 
   // Expose for UI components that might read this

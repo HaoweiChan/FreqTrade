@@ -11,3 +11,8 @@ COPY init-bots.js /etc/nginx/html/
 RUN sed -i "s/__FT_UI_USERNAME__/${FT_UI_USERNAME}/g" /etc/nginx/html/init-bots.js && \
     sed -i "s/__FT_UI_PASSWORD__/${FT_UI_PASSWORD}/g" /etc/nginx/html/init-bots.js && \
     sed -i '/<head>/a \  <script src="/init-bots.js"></script>' /etc/nginx/html/index.html
+
+# Install apache2-utils for htpasswd command and create password file
+RUN apk add --no-cache apache2-utils && \
+    htpasswd -bc /etc/nginx/.htpasswd "${FT_UI_USERNAME}" "${FT_UI_PASSWORD}" && \
+    apk del apache2-utils
