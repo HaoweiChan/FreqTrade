@@ -3,12 +3,14 @@ version: '3.8'
 services:
   frequi:
     image: ${DOCKER_REGISTRY:-ghcr.io}/haoweichan/freqtrade/freqtrade-ui:${IMAGE_TAG:-latest}
-    build:
-      context: ./ui
-      dockerfile: Dockerfile
-      args:
-        FT_UI_USERNAME: ${FT_UI_USERNAME:-admin}
-        FT_UI_PASSWORD: ${FT_UI_PASSWORD:-admin123}
+    # build:
+    #   context: ./ui
+    #   dockerfile: Dockerfile
+    #   args:
+    #     FT_UI_USERNAME: ${FT_UI_USERNAME:-admin}
+    #     FT_UI_PASSWORD: ${FT_UI_PASSWORD:-admin123}
+    # NOTE: Build section commented out to force use of pre-built registry image
+    # For local development, uncomment the build section above
     container_name: freqtrade-ui
     restart: unless-stopped
     ports:
