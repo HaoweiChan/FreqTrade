@@ -172,15 +172,6 @@ jobs:
           exit 1
         fi
 
-        # ======== START DEBUGGING ========
-        echo "🕵️  Running debugging commands inside the container..."
-        
-        echo "--- Nginx full configuration test (nginx -T) ---"
-        docker exec test-ui nginx -T
-        
-        echo "🕵️  Finished debugging commands."
-        # ======== END DEBUGGING ==========
-
         # Wait for startup and test HTTP response (retry up to ~20s)
         for i in {1..20}; do
           HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:$TEST_PORT || true)
