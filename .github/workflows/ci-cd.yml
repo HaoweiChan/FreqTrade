@@ -150,6 +150,7 @@ jobs:
           FT_UI_PASSWORD=${{ secrets.FT_UI_PASSWORD || 'admin123' }}
 
     - name: Test UI image
+      # Trigger new run
       run: |
         # Test that the UI serves content correctly with authentication
         # Use the first tag from metadata action (already lowercase)
@@ -172,22 +173,21 @@ jobs:
           exit 1
         fi
 
-        # Wait for startup and test HTTP response (retry up to ~20s)
-        for i in {1..20}; do
-          HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:$TEST_PORT || true)
-          if [ "$HTTP_CODE" != "000" ]; then
-            break
-          fi
-          sleep 1
-        done
-        
-        # If container exited, show logs and fail
-        if ! docker ps --filter "name=test-ui" --format "{{.Names}}" | grep -q "test-ui"; then
-          echo "❌ UI container 'test-ui' exited prematurely."
-          echo "📋 Fetching logs to debug:"
-          docker logs test-ui 2>&1 || echo "Could not fetch logs, container likely never started."
-          exit 1
-        fi
+        # ======== START DEBUGGING ========
+        echo "🕵️ Running debugging commands inside the container..."
+
+        echo "--- Nginx full configuration test (nginx -T) ---"
+        docker exec test-ui nginx -T
+
+        echo "--- .htpasswd file contents ---"
+        docker exec test-ui cat /etc/nginx/.htpasswd
+
+        echo "--- File permissions ---"
+        docker exec test-ui ls -l /etc/nginx/.htpasswd
+        docker exec test-ui ls -l /etc/nginx/conf.d/
+
+        echo "🕵️ Finished debugging commands."
+        # ======== END DEBUGGING ==========
 
         # Test without credentials (should get 401)
         if curl -s -o /dev/null -w "%{http_code}" http://localhost:$TEST_PORT | grep -q "401"; then
