@@ -21,4 +21,7 @@ RUN apk add --no-cache apache2-utils && \
         echo "Error: .htpasswd file not created or is empty." >&2; \
         exit 1; \
     fi && \
+    # Ensure nginx user can read the password file
+    chown nginx:nginx /etc/nginx/.htpasswd && \
+    chmod 644 /etc/nginx/.htpasswd && \
     apk del apache2-utils
