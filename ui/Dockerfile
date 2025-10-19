@@ -5,7 +5,7 @@ ARG FT_UI_USERNAME=admin
 ARG FT_UI_PASSWORD=admin123
 
 # Copy custom nginx configuration and bootstrap script
-COPY nginx/nginx.conf /etc/nginx/nginx.conf
+# COPY nginx/nginx.conf /etc/nginx/nginx.conf
 COPY init-bots.js /etc/nginx/html/
 
 # Replace placeholders with actual credentials
