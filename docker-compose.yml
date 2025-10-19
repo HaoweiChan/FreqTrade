@@ -3,12 +3,12 @@ version: '3.8'
 services:
   frequi:
     image: ${DOCKER_REGISTRY:-ghcr.io}/haoweichan/freqtrade/freqtrade-ui:${IMAGE_TAG:-latest}
-    # build:
-    #   context: ./ui
-    #   dockerfile: Dockerfile
-    #   args:
-    #     FT_UI_USERNAME: ${FT_UI_USERNAME:-admin}
-    #     FT_UI_PASSWORD: ${FT_UI_PASSWORD:-admin123}
+    build:
+      context: ./ui
+      dockerfile: Dockerfile
+      args:
+        FT_UI_USERNAME: ${FT_UI_USERNAME:-fq}
+        FT_UI_PASSWORD: ${FT_UI_PASSWORD:-fq}
     # NOTE: Build section commented out to force use of pre-built registry image
     # For local development, uncomment the build section above
     container_name: freqtrade-ui
@@ -35,12 +35,13 @@ services:
       - FREQTRADE__EXCHANGE__SECRET=${BINANCE_SECRET}
       - FREQTRADE__TELEGRAM__TOKEN=${TELEGRAM_TOKEN}
       - FREQTRADE__TELEGRAM__CHAT_ID=${TELEGRAM_CHAT_ID}
-      - FREQTRADE__API_SERVER__USERNAME=${FT_UI_USERNAME}
-      - FREQTRADE__API_SERVER__PASSWORD=${FT_UI_PASSWORD}
+      - FREQTRADE__API_SERVER__USERNAME=${FT_UI_USERNAME:-fq}
+      - FREQTRADE__API_SERVER__PASSWORD=${FT_UI_PASSWORD:-fq}
     ports:
       - "8081:8080"
     volumes:
       - "./user_data/ichi:/freqtrade/user_data"  # Isolated database and logs
+      - "./user_data/strategies:/freqtrade/strategies"  # Resolve symlink ../strategies
     command: >
       trade
       --config /freqtrade/user_data/config.json
@@ -59,12 +60,13 @@ services:
       - FREQTRADE__EXCHANGE__SECRET=${BINANCE_SECRET}
       - FREQTRADE__TELEGRAM__TOKEN=${TELEGRAM_TOKEN}
       - FREQTRADE__TELEGRAM__CHAT_ID=${TELEGRAM_CHAT_ID}
-      - FREQTRADE__API_SERVER__USERNAME=${FT_UI_USERNAME}
-      - FREQTRADE__API_SERVER__PASSWORD=${FT_UI_PASSWORD}
+      - FREQTRADE__API_SERVER__USERNAME=${FT_UI_USERNAME:-fq}
+      - FREQTRADE__API_SERVER__PASSWORD=${FT_UI_PASSWORD:-fq}
     ports:
       - "8082:8080"
     volumes:
       - "./user_data/lookahead:/freqtrade/user_data"  # Isolated database and logs
+      - "./user_data/strategies:/freqtrade/strategies"  # Resolve symlink ../strategies
     command: >
       trade
       --config /freqtrade/user_data/config.json
@@ -83,12 +85,13 @@ services:
       - FREQTRADE__EXCHANGE__SECRET=${BINANCE_SECRET}
       - FREQTRADE__TELEGRAM__TOKEN=${TELEGRAM_TOKEN}
       - FREQTRADE__TELEGRAM__CHAT_ID=${TELEGRAM_CHAT_ID}
-      - FREQTRADE__API_SERVER__USERNAME=${FT_UI_USERNAME}
-      - FREQTRADE__API_SERVER__PASSWORD=${FT_UI_PASSWORD}
+      - FREQTRADE__API_SERVER__USERNAME=${FT_UI_USERNAME:-fq}
+      - FREQTRADE__API_SERVER__PASSWORD=${FT_UI_PASSWORD:-fq}
     ports:
       - "8083:8080"
     volumes:
       - "./user_data/macd:/freqtrade/user_data"  # Isolated database and logs
+      - "./user_data/strategies:/freqtrade/strategies"  # Resolve symlink ../strategies
     command: >
       trade
       --config /freqtrade/user_data/config.json
@@ -107,12 +110,13 @@ services:
       - FREQTRADE__EXCHANGE__SECRET=${BINANCE_SECRET}
       - FREQTRADE__TELEGRAM__TOKEN=${TELEGRAM_TOKEN}
       - FREQTRADE__TELEGRAM__CHAT_ID=${TELEGRAM_CHAT_ID}
-      - FREQTRADE__API_SERVER__USERNAME=${FT_UI_USERNAME}
-      - FREQTRADE__API_SERVER__PASSWORD=${FT_UI_PASSWORD}
+      - FREQTRADE__API_SERVER__USERNAME=${FT_UI_USERNAME:-fq}
+      - FREQTRADE__API_SERVER__PASSWORD=${FT_UI_PASSWORD:-fq}
     ports:
       - "8084:8080"
     volumes:
       - "./user_data/psar:/freqtrade/user_data"  # Isolated database and logs
+      - "./user_data/strategies:/freqtrade/strategies"  # Resolve symlink ../strategies
     command: >
       trade
       --config /freqtrade/user_data/config.json
@@ -131,12 +135,13 @@ services:
       - FREQTRADE__EXCHANGE__SECRET=${BINANCE_SECRET}
       - FREQTRADE__TELEGRAM__TOKEN=${TELEGRAM_TOKEN}
       - FREQTRADE__TELEGRAM__CHAT_ID=${TELEGRAM_CHAT_ID}
-      - FREQTRADE__API_SERVER__USERNAME=${FT_UI_USERNAME}
-      - FREQTRADE__API_SERVER__PASSWORD=${FT_UI_PASSWORD}
+      - FREQTRADE__API_SERVER__USERNAME=${FT_UI_USERNAME:-fq}
+      - FREQTRADE__API_SERVER__PASSWORD=${FT_UI_PASSWORD:-fq}
     ports:
       - "8085:8080"
     volumes:
       - "./user_data/macdcci:/freqtrade/user_data"  # Isolated database and logs
+      - "./user_data/strategies:/freqtrade/strategies"  # Resolve symlink ../strategies
     command: >
       trade
       --config /freqtrade/user_data/config.json

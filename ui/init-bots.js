@@ -62,7 +62,7 @@
           const rec = store[id] || {};
           if (rec.accessToken && rec.refreshToken) return;
           try {
-            const resp = await fetch(b.url + '/api/v1/token/login', {
+            const resp = await fetch(b.url.replace(/\/$/, '') + '/api/v1/token/login', {
               method: 'POST',
               headers: { Authorization: creds },
               credentials: 'omit',
