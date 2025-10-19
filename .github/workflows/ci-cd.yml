@@ -146,8 +146,8 @@ jobs:
         cache-from: type=gha
         cache-to: type=gha,mode=max
         build-args: |
-          FT_UI_USERNAME=${{ secrets.FT_UI_USERNAME }}
-          FT_UI_PASSWORD=${{ secrets.FT_UI_PASSWORD }}
+          FT_UI_USERNAME=${{ secrets.FT_UI_USERNAME || 'admin' }}
+          FT_UI_PASSWORD=${{ secrets.FT_UI_PASSWORD || 'admin123' }}
 
     - name: Test UI image
       run: |
@@ -181,10 +181,8 @@ jobs:
         fi
         
         # Test with credentials (should get 200)
-        TEST_USER="${{ secrets.FT_UI_USERNAME }}"
-        TEST_PASS="${{ secrets.FT_UI_PASSWORD }}"
-        if [ -z "$TEST_USER" ]; then TEST_USER="admin"; fi
-        if [ -z "$TEST_PASS" ]; then TEST_PASS="admin123"; fi
+        TEST_USER="${{ secrets.FT_UI_USERNAME || 'admin' }}"
+        TEST_PASS="${{ secrets.FT_UI_PASSWORD || 'admin123' }}"
         if curl -f -u "$TEST_USER:$TEST_PASS" http://localhost:$TEST_PORT > /dev/null 2>&1; then
           echo "✅ UI is serving content successfully with authentication"
           docker stop test-ui
@@ -216,8 +214,8 @@ jobs:
         BINANCE_SECRET=test_secret
         TELEGRAM_TOKEN=test_token
         TELEGRAM_CHAT_ID=test_chat_id
-        FT_UI_USERNAME=test_user
-        FT_UI_PASSWORD=test_password
+        FT_UI_USERNAME=${{ secrets.FT_UI_USERNAME || 'test_user' }}
+        FT_UI_PASSWORD=${{ secrets.FT_UI_PASSWORD || 'test_password' }}
         EOF
 
     - name: Update docker-compose for testing
@@ -298,7 +296,9 @@ jobs:
           echo "✅ UI authentication is working (401 without credentials)"
           
           # Test with credentials
-          if curl -f -u "$FT_UI_USERNAME:$FT_UI_PASSWORD" http://localhost:$TEST_PORT > /dev/null 2>&1; then
+          TEST_USER="${{ secrets.FT_UI_USERNAME || 'test_user' }}"
+          TEST_PASS="${{ secrets.FT_UI_PASSWORD || 'test_password' }}"
+          if curl -f -u "$TEST_USER:$TEST_PASS" http://localhost:$TEST_PORT > /dev/null 2>&1; then
             echo "✅ UI is accessible with credentials through docker-compose"
           else
             echo "❌ UI not accessible with credentials through docker-compose"
