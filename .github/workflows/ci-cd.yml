@@ -163,18 +163,34 @@ jobs:
         
         # Wait for startup and test HTTP response (retry up to ~20s)
         for i in {1..20}; do
+          # Check if container is still running before attempting to curl
+          if ! docker ps --filter "name=test-ui" --format "{{.Names}}" | grep -q "test-ui"; then
+            echo "❌ UI container 'test-ui' exited prematurely."
+            echo "📋 Fetching logs to debug:"
+            docker logs test-ui 2>&1 || echo "Could not fetch logs, container likely never started."
+            exit 1
+          fi
+
           HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:$TEST_PORT || true)
           if [ "$HTTP_CODE" != "000" ]; then
             break
           fi
           sleep 1
         done
-        
+
         # Test without credentials (should get 401)
+        # Verify container is still up before testing auth
+        if ! docker ps --filter "name=test-ui" --format "{{.Names}}" | grep -q "test-ui"; then
+          echo "❌ UI container exited before authentication tests could run."
+          echo "📋 Last logs:"
+          docker logs test-ui 2>&1
+          exit 1
+        fi
+        
         if curl -s -o /dev/null -w "%{http_code}" http://localhost:$TEST_PORT | grep -q "401"; then
           echo "✅ Authentication is working (401 without credentials)"
         else
-          echo "❌ Authentication is not working as expected"
+          echo "❌ Authentication test failed. Expected 401, got a different response or connection error."
           docker logs test-ui || true
           docker stop test-ui 2>/dev/null || true
           exit 1
@@ -296,9 +312,7 @@ jobs:
           echo "✅ UI authentication is working (401 without credentials)"
           
           # Test with credentials
-          TEST_USER="${{ secrets.FT_UI_USERNAME || 'test_user' }}"
-          TEST_PASS="${{ secrets.FT_UI_PASSWORD || 'test_password' }}"
-          if curl -f -u "$TEST_USER:$TEST_PASS" http://localhost:$TEST_PORT > /dev/null 2>&1; then
+          if curl -f -u "$FT_UI_USERNAME:$FT_UI_PASSWORD" http://localhost:$TEST_PORT > /dev/null 2>&1; then
             echo "✅ UI is accessible with credentials through docker-compose"
           else
             echo "❌ UI not accessible with credentials through docker-compose"
