@@ -161,6 +161,39 @@ jobs:
         
         docker run --rm -d --name test-ui -p "$TEST_PORT:80" "$IMAGE_TAG"
         
+        # Give container time to start
+        sleep 5
+
+        # If container exited, show logs and fail
+        if ! docker ps --filter "name=test-ui" --format "{{.Names}}" | grep -q "test-ui"; then
+          echo "❌ UI container 'test-ui' exited prematurely."
+          echo "📋 Fetching logs to debug:"
+          docker logs test-ui 2>&1 || echo "Could not fetch logs, container likely never started."
+          exit 1
+        fi
+
+        # ======== START DEBUGGING ========
+        echo "🕵️  Running debugging commands inside the container..."
+        
+        echo "--- File permissions in /etc/nginx/ ---"
+        docker exec test-ui ls -l /etc/nginx/
+        
+        echo "--- Contents of /etc/nginx/conf.d/ ---"
+        docker exec test-ui ls -l /etc/nginx/conf.d/
+
+        echo "--- Content of /etc/nginx/nginx.conf ---"
+        docker exec test-ui cat /etc/nginx/nginx.conf
+
+        echo "--- Nginx full configuration test (nginx -T) ---"
+        docker exec test-ui nginx -T
+        
+        echo "--- .htpasswd file permissions and content ---"
+        docker exec test-ui ls -l /etc/nginx/.htpasswd
+        docker exec test-ui cat /etc/nginx/.htpasswd
+        
+        echo "🕵️  Finished debugging commands."
+        # ======== END DEBUGGING ==========
+
         # Wait for startup and test HTTP response (retry up to ~20s)
         for i in {1..20}; do
           HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:$TEST_PORT || true)
