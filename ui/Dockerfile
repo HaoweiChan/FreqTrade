@@ -13,7 +13,12 @@ RUN sed -i "s/__FT_UI_USERNAME__/${FT_UI_USERNAME}/g" /etc/nginx/html/init-bots.
     sed -i "s/__FT_UI_PASSWORD__/${FT_UI_PASSWORD}/g" /etc/nginx/html/init-bots.js && \
     sed -i '/<head>/a \  <script src="/init-bots.js"></script>' /etc/nginx/html/index.html
 
-# Install apache2-utils for htpasswd command and create password file
+# Install apache2-utils for htpasswd, create password file, then clean up
 RUN apk add --no-cache apache2-utils && \
     htpasswd -bc /etc/nginx/.htpasswd "${FT_UI_USERNAME}" "${FT_UI_PASSWORD}" && \
+    # Verify that the htpasswd file was created and is not empty
+    if [ ! -s /etc/nginx/.htpasswd ]; then \
+        echo "Error: .htpasswd file not created or is empty." >&2; \
+        exit 1; \
+    fi && \
     apk del apache2-utils
