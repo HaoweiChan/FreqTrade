@@ -4,8 +4,9 @@ FROM freqtradeorg/frequi:latest
 ARG FT_UI_USERNAME=admin
 ARG FT_UI_PASSWORD=admin123
 
-# Copy custom nginx configuration and bootstrap script
-COPY nginx/freqtrade.conf /etc/nginx/conf.d/default.conf
+# Remove default server config and copy custom one
+RUN rm /etc/nginx/conf.d/default.conf
+COPY nginx/freqtrade.conf /etc/nginx/conf.d/
 COPY init-bots.js /etc/nginx/html/
 
 # Replace placeholders with actual credentials

@@ -175,21 +175,8 @@ jobs:
         # ======== START DEBUGGING ========
         echo "🕵️  Running debugging commands inside the container..."
         
-        echo "--- File permissions in /etc/nginx/ ---"
-        docker exec test-ui ls -l /etc/nginx/
-        
-        echo "--- Contents of /etc/nginx/conf.d/ ---"
-        docker exec test-ui ls -l /etc/nginx/conf.d/
-
-        echo "--- Content of /etc/nginx/nginx.conf ---"
-        docker exec test-ui cat /etc/nginx/nginx.conf
-
         echo "--- Nginx full configuration test (nginx -T) ---"
         docker exec test-ui nginx -T
-        
-        echo "--- .htpasswd file permissions and content ---"
-        docker exec test-ui ls -l /etc/nginx/.htpasswd
-        docker exec test-ui cat /etc/nginx/.htpasswd
         
         echo "🕵️  Finished debugging commands."
         # ======== END DEBUGGING ==========
