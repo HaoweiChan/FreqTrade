@@ -170,6 +170,14 @@ jobs:
           sleep 1
         done
         
+        # If container exited, show logs and fail
+        if ! docker ps --filter "name=test-ui" --format "{{.Names}}" | grep -q "test-ui"; then
+          echo "❌ UI container 'test-ui' exited prematurely."
+          echo "📋 Fetching logs to debug:"
+          docker logs test-ui 2>&1 || echo "Could not fetch logs, container likely never started."
+          exit 1
+        fi
+
         # Test without credentials (should get 401)
         if curl -s -o /dev/null -w "%{http_code}" http://localhost:$TEST_PORT | grep -q "401"; then
           echo "✅ Authentication is working (401 without credentials)"
