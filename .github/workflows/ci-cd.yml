@@ -159,7 +159,27 @@ jobs:
         TEST_PORT=$((8000 + RANDOM % 1000))
         echo "Using port: $TEST_PORT"
         
-        docker run --rm -d --name test-ui -p "$TEST_PORT:80" "$IMAGE_TAG"
+        docker run --rm -d --name test-ui -p "$TEST_PORT:80" "$IMAGE_TAG" tail -f /dev/null
+        
+        # Give it a moment to start
+        sleep 5
+
+        # Check if nginx can start manually
+        echo "Attempting to start nginx manually..."
+        docker exec test-ui nginx -g 'daemon off;' &
+        NGINX_PID=$!
+
+        # Wait a few seconds for nginx to potentially fail
+        sleep 5
+
+        # Check if nginx process is still running
+        if kill -0 $NGINX_PID; then
+            echo "✅ Nginx started successfully in the container."
+        else
+            echo "❌ Nginx failed to start. See logs below."
+            docker logs test-ui
+            exit 1
+        fi
         
         # Wait for startup and test HTTP response (retry up to ~20s)
         for i in {1..20}; do
