@@ -1,0 +1,39 @@
+version: '3.8'
+services:
+  freqtrade-ichiv1:
+    build: .
+    container_name: freqtrade-ichiv1-local
+    networks:
+      - freqtrade-test-local
+    environment:
+      - FREQTRADE__DRY_RUN=true
+      - FREQTRADE__EXCHANGE__NAME=binance
+      - FREQTRADE__EXCHANGE__SANDBOX=true
+      - FREQTRADE__EXCHANGE__KEY=test_key
+      - FREQTRADE__EXCHANGE__SECRET=test_secret
+      - FREQTRADE__TELEGRAM__ENABLED=false
+    volumes:
+      - "./user_data:/freqtrade/user_data"
+    command: >
+      trade
+      --config /freqtrade/user_data/config.json
+      --strategy ichiV1
+
+  frequi-test:
+    build:
+      context: ./ui
+      dockerfile: Dockerfile
+      args:
+        FT_UI_USERNAME: admin
+        FT_UI_PASSWORD: admin123
+    container_name: freqtrade-ui-test-local
+    networks:
+      - freqtrade-test-local
+    ports:
+      - "9999:80"
+    depends_on:
+      - freqtrade-ichiv1
+
+networks:
+  freqtrade-test-local:
+    driver: bridge
