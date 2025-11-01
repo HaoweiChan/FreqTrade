@@ -435,9 +435,6 @@ jobs:
         project_id: ${{ secrets.GCP_PROJECT_ID }}
 
     - name: Configure SSH for GCP VM
-      env:
-        GCP_SSH_PRIVATE_KEY: ${{ secrets.GCP_SSH_PRIVATE_KEY }}
-        GCP_VM_IP: ${{ secrets.GCP_VM_IP }}
       run: |
         echo "🔧 Configuring SSH for GCP VM access..."
 
@@ -445,16 +442,16 @@ jobs:
         mkdir -p ~/.ssh
         chmod 700 ~/.ssh
 
-        # Write SSH private key to file
-        echo "$GCP_SSH_PRIVATE_KEY" > /tmp/gcp_key
+        # Write SSH private key to file - use printf to handle multiline keys correctly
+        printf '%s\n' "${{ secrets.GCP_SSH_PRIVATE_KEY }}" > /tmp/gcp_key
         chmod 600 /tmp/gcp_key
 
         # Add GCP VM to known hosts
-        echo "🔗 Adding $GCP_VM_IP to known hosts..."
-        if ssh-keyscan -H $GCP_VM_IP >> ~/.ssh/known_hosts 2>/dev/null; then
-          echo "✅ Successfully added $GCP_VM_IP to known hosts"
+        echo "🔗 Adding ${{ secrets.GCP_VM_IP }} to known hosts..."
+        if ssh-keyscan -H ${{ secrets.GCP_VM_IP }} >> ~/.ssh/known_hosts 2>/dev/null; then
+          echo "✅ Successfully added ${{ secrets.GCP_VM_IP }} to known hosts"
         else
-          echo "⚠️  Could not resolve $GCP_VM_IP - check if IP/hostname is correct"
+          echo "⚠️  Could not resolve ${{ secrets.GCP_VM_IP }} - check if IP/hostname is correct"
         fi
 
     - name: Deploy to GCP VM
