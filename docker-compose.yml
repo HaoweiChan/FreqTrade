@@ -11,7 +11,7 @@ services:
         FT_UI_PASSWORD: ${FT_UI_PASSWORD:-fq}
     # NOTE: Build section commented out to force use of pre-built registry image
     # For local development, uncomment the build section above
-    container_name: freqtrade-ui
+    container_name: freqtrade-ui-${DEPLOYMENT_ENV:-production}
     restart: unless-stopped
     ports:
       - "${UI_PORT:-8080}:80"
@@ -25,7 +25,7 @@ services:
   freqtrade-ichiv1:
     image: ${DOCKER_REGISTRY:-ghcr.io}/haoweichan/freqtrade/freqtrade-bot:${IMAGE_TAG:-latest}
     build: .
-    container_name: freqtrade-trader-ichi_v1-DRYRUN  # Clear mode indicator
+    container_name: freqtrade-trader-ichi_v1-DRYRUN-${DEPLOYMENT_ENV:-production}  # Clear mode indicator
     restart: unless-stopped
     environment:
       - FREQTRADE__DRY_RUN=${ICHI_DRY_RUN:-true}  # Per-bot dry-run control
@@ -50,7 +50,7 @@ services:
   freqtrade-lookaheadstrategy:
     image: ${DOCKER_REGISTRY:-ghcr.io}/haoweichan/freqtrade/freqtrade-bot:${IMAGE_TAG:-latest}
     build: .
-    container_name: freqtrade-trader-lookahead_strategy-DRYRUN  # Clear mode indicator
+    container_name: freqtrade-trader-lookahead_strategy-DRYRUN-${DEPLOYMENT_ENV:-production}  # Clear mode indicator
     restart: unless-stopped
     environment:
       - FREQTRADE__DRY_RUN=${LOOKAHEAD_DRY_RUN:-true}  # Per-bot dry-run control
@@ -75,7 +75,7 @@ services:
   freqtrade-macd:
     image: ${DOCKER_REGISTRY:-ghcr.io}/haoweichan/freqtrade/freqtrade-bot:${IMAGE_TAG:-latest}
     build: .
-    container_name: freqtrade-trader-macd-DRYRUN  # Clear mode indicator
+    container_name: freqtrade-trader-macd-DRYRUN-${DEPLOYMENT_ENV:-production}  # Clear mode indicator
     restart: unless-stopped
     environment:
       - FREQTRADE__DRY_RUN=${MACD_DRY_RUN:-true}  # Per-bot dry-run control
@@ -100,7 +100,7 @@ services:
   freqtrade-customstoplosswithpsar:
     image: ${DOCKER_REGISTRY:-ghcr.io}/haoweichan/freqtrade/freqtrade-bot:${IMAGE_TAG:-latest}
     build: .
-    container_name: freqtrade-trader-custom_stoploss_with_psar-DRYRUN  # Clear mode indicator
+    container_name: freqtrade-trader-custom_stoploss_with_psar-DRYRUN-${DEPLOYMENT_ENV:-production}  # Clear mode indicator
     restart: unless-stopped
     environment:
       - FREQTRADE__DRY_RUN=${PSAR_DRY_RUN:-true}  # Per-bot dry-run control
@@ -125,7 +125,7 @@ services:
   freqtrade-macdcci:
     image: ${DOCKER_REGISTRY:-ghcr.io}/haoweichan/freqtrade/freqtrade-bot:${IMAGE_TAG:-latest}
     build: .
-    container_name: freqtrade-trader-macdcci-DRYRUN  # Clear mode indicator
+    container_name: freqtrade-trader-macdcci-DRYRUN-${DEPLOYMENT_ENV:-production}  # Clear mode indicator
     restart: unless-stopped
     environment:
       - FREQTRADE__DRY_RUN=${MACDCCI_DRY_RUN:-true}  # Per-bot dry-run control
