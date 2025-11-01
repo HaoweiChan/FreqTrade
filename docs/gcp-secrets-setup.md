@@ -39,12 +39,24 @@ Go to: **GitHub Repository → Settings → Secrets and variables → Actions �
 
 ### 2. GCP VM Access Secrets
 
-#### **GCP_VM_IP** - VM External IP
+**Option A: Using gcloud compute ssh (RECOMMENDED - Works without external IP)**
+
+This method uses GCP's Identity-Aware Proxy (IAP) and works even if your VM doesn't have an external IP address.
+
+#### **GCP_VM_INSTANCE** - VM Instance Name
+1. **GCP Console**: Compute Engine → VM instances
+2. **Find your VM instance**
+3. **Copy the instance name** (first column)
+   ```
+   Example: freqtrade-bot
+   ```
+
+#### **GCP_VM_ZONE** - VM Zone
 1. **GCP Console**: Compute Engine → VM instances
 2. **Click your VM instance**
-3. **Copy "External IP"** from the instance details
+3. **Copy the Zone** from instance details
    ```
-   Example: 34.123.45.67
+   Example: asia-east1-b
    ```
 
 #### **GCP_VM_USER** - SSH Username
@@ -53,6 +65,18 @@ Go to: **GitHub Repository → Settings → Secrets and variables → Actions �
 3. **Copy the username** (usually your email prefix)
    ```
    Example: freqtrade_user
+   ```
+
+**Option B: Using Direct SSH (Requires External IP)**
+
+If you prefer direct SSH access, you'll need:
+
+#### **GCP_VM_IP** - VM External IP
+1. **GCP Console**: Compute Engine → VM instances
+2. **Click your VM instance**
+3. **Copy "External IP"** from the instance details
+   ```
+   Example: 34.123.45.67
    ```
 
 #### **GCP_SSH_PRIVATE_KEY** - SSH Private Key

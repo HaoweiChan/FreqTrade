@@ -434,43 +434,22 @@ jobs:
       with:
         project_id: ${{ secrets.GCP_PROJECT_ID }}
 
-    - name: Configure SSH for GCP VM
+    - name: Verify GCP VM access requirements
       run: |
-        echo "🔧 Configuring SSH for GCP VM access..."
-
-        # Verify secrets are available (check both environment and repository level)
-        if [ -z "${{ secrets.GCP_SSH_PRIVATE_KEY }}" ]; then
-          echo "❌ GCP_SSH_PRIVATE_KEY secret is not available"
-          echo "💡 Make sure secrets are set at repository level (Settings → Secrets and variables → Actions)"
-          echo "💡 If using environments, also check environment-level secrets (Settings → Environments)"
-          exit 1
-        fi
+        echo "🔧 Verifying GCP VM access configuration..."
         
-        if [ -z "${{ secrets.GCP_VM_IP }}" ]; then
-          echo "❌ GCP_VM_IP secret is not available"
-          exit 1
-        fi
-
-        # Create .ssh directory if it doesn't exist
-        mkdir -p ~/.ssh
-        chmod 700 ~/.ssh
-
-        # Write SSH private key to file - use printf to handle multiline keys correctly
-        printf '%s\n' "${{ secrets.GCP_SSH_PRIVATE_KEY }}" > /tmp/gcp_key
-        chmod 600 /tmp/gcp_key
-        
-        # Verify the key file was created correctly
-        if [ ! -s /tmp/gcp_key ]; then
-          echo "❌ Failed to write SSH key file"
-          exit 1
-        fi
-
-        # Add GCP VM to known hosts
-        echo "🔗 Adding ${{ secrets.GCP_VM_IP }} to known hosts..."
-        if ssh-keyscan -H ${{ secrets.GCP_VM_IP }} >> ~/.ssh/known_hosts 2>/dev/null; then
-          echo "✅ Successfully added ${{ secrets.GCP_VM_IP }} to known hosts"
+        # Check if using new method (VM instance name + zone) or old method (IP + SSH key)
+        if [ -n "${{ secrets.GCP_VM_INSTANCE }}" ] && [ -n "${{ secrets.GCP_VM_ZONE }}" ]; then
+          echo "✅ Using gcloud compute ssh method (recommended)"
+          echo "   VM Instance: ${{ secrets.GCP_VM_INSTANCE }}"
+          echo "   Zone: ${{ secrets.GCP_VM_ZONE }}"
+        elif [ -n "${{ secrets.GCP_VM_IP }}" ] && [ -n "${{ secrets.GCP_SSH_PRIVATE_KEY }}" ]; then
+          echo "⚠️  Using direct SSH method (may fail if VM doesn't have external IP)"
+          echo "   Consider switching to GCP_VM_INSTANCE and GCP_VM_ZONE secrets"
         else
-          echo "⚠️  Could not resolve ${{ secrets.GCP_VM_IP }} - check if IP/hostname is correct"
+          echo "❌ Missing required secrets for VM access"
+          echo "💡 Required: Either (GCP_VM_INSTANCE + GCP_VM_ZONE) OR (GCP_VM_IP + GCP_SSH_PRIVATE_KEY)"
+          exit 1
         fi
 
     - name: Deploy to GCP VM
@@ -586,51 +565,46 @@ jobs:
         EOF
 
     - name: Verify deployment
+      env:
+        GCP_VM_INSTANCE: ${{ secrets.GCP_VM_INSTANCE }}
+        GCP_VM_ZONE: ${{ secrets.GCP_VM_ZONE }}
       run: |
         echo "🔍 Verifying deployment..."
 
-        # Test SSH connection for verification
-        echo "🔗 Testing SSH connection for verification..."
-        if ! ssh -i /tmp/gcp_key -o StrictHostKeyChecking=no -o ConnectTimeout=10 \
-          ${{ secrets.GCP_VM_USER }}@${{ secrets.GCP_VM_IP }} "echo 'SSH verification connection successful'" >/dev/null 2>&1; then
-          echo "❌ SSH verification connection failed - cannot verify deployment"
-          exit 1
-        fi
-
-        # Check if services are running on GCP VM
-        ssh -i /tmp/gcp_key -o StrictHostKeyChecking=no \
-          ${{ secrets.GCP_VM_USER }}@${{ secrets.GCP_VM_IP }} << EOF
-
+        # Check if services are running on GCP VM using gcloud compute ssh
+        gcloud compute ssh "$GCP_VM_INSTANCE" \
+          --zone="$GCP_VM_ZONE" \
+          --command="
           # Check if freqtrade directory exists (should exist after deployment)
-          if [ ! -d "/home/${{ secrets.GCP_VM_USER }}/freqtrade" ]; then
-            echo "❌ Freqtrade directory not found after deployment"
+          if [ ! -d \"/home/${{ secrets.GCP_VM_USER }}/freqtrade\" ]; then
+            echo '❌ Freqtrade directory not found after deployment'
             exit 1
           fi
 
           cd /home/${{ secrets.GCP_VM_USER }}/freqtrade
 
-          echo "🔍 Checking Docker services status..."
+          echo '🔍 Checking Docker services status...'
           if command -v docker &> /dev/null && command -v docker compose &> /dev/null; then
             # Determine project name based on deployment type
-            if [[ "${{ github.ref }}" =~ ^refs/tags/v ]]; then
-              COMPOSE_PROJECT_NAME="freqtrade-production"
+            if [[ '${{ github.ref }}' =~ ^refs/tags/v ]]; then
+              COMPOSE_PROJECT_NAME=\"freqtrade-production\"
             else
-              COMPOSE_PROJECT_NAME="freqtrade-staging"
+              COMPOSE_PROJECT_NAME=\"freqtrade-staging\"
             fi
             
-            if docker compose -p "$COMPOSE_PROJECT_NAME" ps | grep -q "Up"; then
-              echo "✅ Services are running on GCP VM (Project: $COMPOSE_PROJECT_NAME)"
-              docker compose -p "$COMPOSE_PROJECT_NAME" ps
+            if docker compose -p \"\$COMPOSE_PROJECT_NAME\" ps | grep -q \"Up\"; then
+              echo \"✅ Services are running on GCP VM (Project: \$COMPOSE_PROJECT_NAME)\"
+              docker compose -p \"\$COMPOSE_PROJECT_NAME\" ps
             else
-              echo "⚠️  No services appear to be running - check deployment"
-              docker compose -p "$COMPOSE_PROJECT_NAME" ps || echo "Docker compose not available"
+              echo \"⚠️  No services appear to be running - check deployment\"
+              docker compose -p \"\$COMPOSE_PROJECT_NAME\" ps || echo \"Docker compose not available\"
             fi
           else
-            echo "⚠️  Docker or docker-compose not available on VM"
+            echo \"⚠️  Docker or docker-compose not available on VM\"
           fi
 
-          echo "✅ Deployment verification completed"
-        EOF
+          echo '✅ Deployment verification completed'
+          "
 
     - name: Fetch bot container logs
       run: |
