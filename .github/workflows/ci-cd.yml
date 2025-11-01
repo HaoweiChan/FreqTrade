@@ -440,12 +440,17 @@ jobs:
         
         # Check if using new method (VM instance name + zone) or old method (IP + SSH key)
         if [ -n "${{ secrets.GCP_VM_INSTANCE }}" ] && [ -n "${{ secrets.GCP_VM_ZONE }}" ]; then
-          echo "✅ Using gcloud compute ssh method (recommended)"
+          echo "✅ Using gcloud compute ssh method"
           echo "   VM Instance: ${{ secrets.GCP_VM_INSTANCE }}"
           echo "   Zone: ${{ secrets.GCP_VM_ZONE }}"
+          echo ""
+          echo "⚠️  Note: For IAP tunneling, ensure:"
+          echo "   1. Service account has 'IAP-secured Tunnel User' role"
+          echo "   2. IAP is enabled for your project"
+          echo "   3. VM has OS Login enabled OR has external IP"
         elif [ -n "${{ secrets.GCP_VM_IP }}" ] && [ -n "${{ secrets.GCP_SSH_PRIVATE_KEY }}" ]; then
-          echo "⚠️  Using direct SSH method (may fail if VM doesn't have external IP)"
-          echo "   Consider switching to GCP_VM_INSTANCE and GCP_VM_ZONE secrets"
+          echo "⚠️  Using direct SSH method (requires external IP)"
+          echo "   Consider switching to GCP_VM_INSTANCE and GCP_VM_ZONE for better security"
         else
           echo "❌ Missing required secrets for VM access"
           echo "💡 Required: Either (GCP_VM_INSTANCE + GCP_VM_ZONE) OR (GCP_VM_IP + GCP_SSH_PRIVATE_KEY)"
@@ -477,10 +482,24 @@ jobs:
         echo "🚀 Starting deployment to GCP VM..."
         echo "📍 Target: $GCP_VM_INSTANCE in zone $GCP_VM_ZONE"
 
-        # Deploy using gcloud compute ssh with IAP tunneling
-        gcloud compute ssh "$GCP_VM_INSTANCE" \
+        # Deploy using gcloud compute ssh - try IAP first, fallback to direct SSH
+        # Try IAP tunneling first (more secure, works without external IP)
+        if gcloud compute ssh "$GCP_VM_INSTANCE" \
           --zone="$GCP_VM_ZONE" \
           --tunnel-through-iap \
+          --quiet \
+          --command="echo 'IAP connection successful'" 2>/dev/null; then
+          echo "✅ Using IAP tunneling"
+          IAP_FLAG="--tunnel-through-iap"
+        else
+          echo "⚠️  IAP tunneling not available, trying direct SSH"
+          echo "💡 To enable IAP: Grant 'IAP-secured Tunnel User' role to service account"
+          IAP_FLAG=""
+        fi
+        
+        gcloud compute ssh "$GCP_VM_INSTANCE" \
+          --zone="$GCP_VM_ZONE" \
+          $IAP_FLAG \
           --command="
           set -eux
 
@@ -569,10 +588,21 @@ jobs:
       run: |
         echo "🔍 Verifying deployment..."
 
-        # Check if services are running on GCP VM using gcloud compute ssh with IAP
-        gcloud compute ssh "$GCP_VM_INSTANCE" \
+        # Try IAP first, fallback to direct SSH
+        if gcloud compute ssh "$GCP_VM_INSTANCE" \
           --zone="$GCP_VM_ZONE" \
           --tunnel-through-iap \
+          --quiet \
+          --command="echo 'test'" 2>/dev/null; then
+          IAP_FLAG="--tunnel-through-iap"
+        else
+          IAP_FLAG=""
+        fi
+
+        # Check if services are running on GCP VM using gcloud compute ssh
+        gcloud compute ssh "$GCP_VM_INSTANCE" \
+          --zone="$GCP_VM_ZONE" \
+          $IAP_FLAG \
           --command="
           # Check if freqtrade directory exists (should exist after deployment)
           if [ ! -d \"/home/${{ secrets.GCP_VM_USER }}/freqtrade\" ]; then
@@ -654,10 +684,21 @@ jobs:
         
         echo "📋 Fetching bot container logs..."
         
-        # Use gcloud compute ssh with IAP to fetch logs
-        gcloud compute ssh "$GCP_VM_INSTANCE" \
+        # Try IAP first, fallback to direct SSH
+        if gcloud compute ssh "$GCP_VM_INSTANCE" \
           --zone="$GCP_VM_ZONE" \
           --tunnel-through-iap \
+          --quiet \
+          --command="echo 'test'" 2>/dev/null; then
+          IAP_FLAG="--tunnel-through-iap"
+        else
+          IAP_FLAG=""
+        fi
+        
+        # Use gcloud compute ssh to fetch logs
+        gcloud compute ssh "$GCP_VM_INSTANCE" \
+          --zone="$GCP_VM_ZONE" \
+          $IAP_FLAG \
           --command="
           cd /home/${{ secrets.GCP_VM_USER }}/freqtrade
           
