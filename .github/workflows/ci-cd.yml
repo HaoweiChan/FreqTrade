@@ -619,7 +619,7 @@ jobs:
         
         # Use shorter timeout and continue-on-error for log fetching
         ssh -i /tmp/gcp_key -o StrictHostKeyChecking=no -o ConnectTimeout=5 \
-          $GCP_VM_USER@$GCP_VM_IP << 'EOF' || true
+          $GCP_VM_USER@$GCP_VM_IP bash -s "$GCP_VM_USER" "${{ github.ref }}" << 'EOF' || true
           cd /home/$GCP_VM_USER/freqtrade
           
           # Determine project name based on deployment type
