@@ -477,9 +477,10 @@ jobs:
         echo "🚀 Starting deployment to GCP VM..."
         echo "📍 Target: $GCP_VM_INSTANCE in zone $GCP_VM_ZONE"
 
-        # Deploy using gcloud compute ssh
+        # Deploy using gcloud compute ssh with IAP tunneling
         gcloud compute ssh "$GCP_VM_INSTANCE" \
           --zone="$GCP_VM_ZONE" \
+          --tunnel-through-iap \
           --command="
           set -eux
 
@@ -568,9 +569,10 @@ jobs:
       run: |
         echo "🔍 Verifying deployment..."
 
-        # Check if services are running on GCP VM using gcloud compute ssh
+        # Check if services are running on GCP VM using gcloud compute ssh with IAP
         gcloud compute ssh "$GCP_VM_INSTANCE" \
           --zone="$GCP_VM_ZONE" \
+          --tunnel-through-iap \
           --command="
           # Check if freqtrade directory exists (should exist after deployment)
           if [ ! -d \"/home/${{ secrets.GCP_VM_USER }}/freqtrade\" ]; then
@@ -652,9 +654,10 @@ jobs:
         
         echo "📋 Fetching bot container logs..."
         
-        # Use gcloud compute ssh to fetch logs
+        # Use gcloud compute ssh with IAP to fetch logs
         gcloud compute ssh "$GCP_VM_INSTANCE" \
           --zone="$GCP_VM_ZONE" \
+          --tunnel-through-iap \
           --command="
           cd /home/${{ secrets.GCP_VM_USER }}/freqtrade
           
