@@ -14,7 +14,7 @@ services:
     container_name: freqtrade-ui
     restart: unless-stopped
     ports:
-      - "8080:80"
+      - "${UI_PORT:-8080}:80"
     depends_on:
       - freqtrade-ichiv1
       - freqtrade-lookaheadstrategy
@@ -38,7 +38,7 @@ services:
       - FREQTRADE__API_SERVER__USERNAME=${FT_UI_USERNAME:-fq}
       - FREQTRADE__API_SERVER__PASSWORD=${FT_UI_PASSWORD:-fq}
     ports:
-      - "8081:8080"
+      - "${BOT_PORT_ICHI:-8081}:8080"
     volumes:
       - "./user_data/ichi:/freqtrade/user_data"  # Isolated database and logs
       - "./user_data/strategies:/freqtrade/strategies"  # Resolve symlink ../strategies
@@ -63,7 +63,7 @@ services:
       - FREQTRADE__API_SERVER__USERNAME=${FT_UI_USERNAME:-fq}
       - FREQTRADE__API_SERVER__PASSWORD=${FT_UI_PASSWORD:-fq}
     ports:
-      - "8082:8080"
+      - "${BOT_PORT_LOOKAHEAD:-8082}:8080"
     volumes:
       - "./user_data/lookahead:/freqtrade/user_data"  # Isolated database and logs
       - "./user_data/strategies:/freqtrade/strategies"  # Resolve symlink ../strategies
@@ -88,7 +88,7 @@ services:
       - FREQTRADE__API_SERVER__USERNAME=${FT_UI_USERNAME:-fq}
       - FREQTRADE__API_SERVER__PASSWORD=${FT_UI_PASSWORD:-fq}
     ports:
-      - "8083:8080"
+      - "${BOT_PORT_MACD:-8083}:8080"
     volumes:
       - "./user_data/macd:/freqtrade/user_data"  # Isolated database and logs
       - "./user_data/strategies:/freqtrade/strategies"  # Resolve symlink ../strategies
@@ -113,7 +113,7 @@ services:
       - FREQTRADE__API_SERVER__USERNAME=${FT_UI_USERNAME:-fq}
       - FREQTRADE__API_SERVER__PASSWORD=${FT_UI_PASSWORD:-fq}
     ports:
-      - "8084:8080"
+      - "${BOT_PORT_PSAR:-8084}:8080"
     volumes:
       - "./user_data/psar:/freqtrade/user_data"  # Isolated database and logs
       - "./user_data/strategies:/freqtrade/strategies"  # Resolve symlink ../strategies
@@ -138,7 +138,7 @@ services:
       - FREQTRADE__API_SERVER__USERNAME=${FT_UI_USERNAME:-fq}
       - FREQTRADE__API_SERVER__PASSWORD=${FT_UI_PASSWORD:-fq}
     ports:
-      - "8085:8080"
+      - "${BOT_PORT_MACDCCI:-8085}:8080"
     volumes:
       - "./user_data/macdcci:/freqtrade/user_data"  # Isolated database and logs
       - "./user_data/strategies:/freqtrade/strategies"  # Resolve symlink ../strategies

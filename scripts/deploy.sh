@@ -27,6 +27,30 @@ if [ -z "$IMAGE_TAG" ]; then
   export IMAGE_TAG="latest"
 fi
 echo -e "${YELLOW}📦 Using image tag: ${IMAGE_TAG}${NC}"
+
+# Set port configuration based on deployment environment
+# Default to production ports (8080-8085)
+if [ -z "$DEPLOYMENT_ENV" ]; then
+  export DEPLOYMENT_ENV="production"
+fi
+
+if [ "$DEPLOYMENT_ENV" = "staging" ]; then
+  echo -e "${YELLOW}🏷️  Deployment environment: STAGING (using ports 9080-9085)${NC}"
+  export UI_PORT=9080
+  export BOT_PORT_ICHI=9081
+  export BOT_PORT_LOOKAHEAD=9082
+  export BOT_PORT_MACD=9083
+  export BOT_PORT_PSAR=9084
+  export BOT_PORT_MACDCCI=9085
+else
+  echo -e "${YELLOW}🏷️  Deployment environment: PRODUCTION (using ports 8080-8085)${NC}"
+  export UI_PORT=${UI_PORT:-8080}
+  export BOT_PORT_ICHI=${BOT_PORT_ICHI:-8081}
+  export BOT_PORT_LOOKAHEAD=${BOT_PORT_LOOKAHEAD:-8082}
+  export BOT_PORT_MACD=${BOT_PORT_MACD:-8083}
+  export BOT_PORT_PSAR=${BOT_PORT_PSAR:-8084}
+  export BOT_PORT_MACDCCI=${BOT_PORT_MACDCCI:-8085}
+fi
 echo ""
 
 echo -e "${GREEN}Step 1: Stopping current services...${NC}"

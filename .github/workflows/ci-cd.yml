@@ -45,7 +45,8 @@ jobs:
         tags: |
           type=ref,event=branch
           type=ref,event=pr
-          type=sha,prefix={{branch}}-,format=short
+          type=ref,event=tag
+          type=sha,prefix=main-,format=short,enable={{is_default_branch}}
           type=raw,value=latest,enable={{is_default_branch}}
 
     - name: Generate strategies archive
@@ -134,7 +135,7 @@ jobs:
           type=ref,event=branch
           type=ref,event=pr
           type=ref,event=tag
-          type=sha,prefix={{branch}}-,format=short
+          type=sha,prefix=main-,format=short,enable={{is_default_branch}}
           type=raw,value=latest,enable={{is_default_branch}}
 
     - name: Build and push UI image
@@ -519,14 +520,16 @@ jobs:
             exit 1
           fi
 
-          # 5. Set the image tag based on deployment type
+          # 5. Set the image tag and deployment environment based on deployment type
           # Production: Use tag name (e.g., v0.1.0)
           # Staging: Use main-{sha} format
           if [[ "${{ github.ref }}" =~ ^refs/tags/v ]]; then
             export IMAGE_TAG="${GITHUB_REF#refs/tags/}"
+            export DEPLOYMENT_ENV="production"
             echo "🏷️  Production deployment with tag: \$IMAGE_TAG"
           else
             export IMAGE_TAG="main-$(echo "${{ github.sha }}" | cut -c1-7)"
+            export DEPLOYMENT_ENV="staging"
             echo "🏷️  Staging deployment with tag: \$IMAGE_TAG"
           fi
 
