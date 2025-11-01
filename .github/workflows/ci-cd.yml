@@ -619,11 +619,13 @@ jobs:
         
         # Use shorter timeout and continue-on-error for log fetching
         ssh -i /tmp/gcp_key -o StrictHostKeyChecking=no -o ConnectTimeout=5 \
-          $GCP_VM_USER@$GCP_VM_IP bash -s "$GCP_VM_USER" "${{ github.ref }}" << 'EOF' || true
+          $GCP_VM_USER@$GCP_VM_IP bash -s << 'EOF' || true
+          GCP_VM_USER="$1"
+          GITHUB_REF="$2"
           cd /home/$GCP_VM_USER/freqtrade
           
           # Determine project name based on deployment type
-          if [[ "${{ github.ref }}" =~ ^refs/tags/v ]]; then
+          if [[ "$GITHUB_REF" =~ ^refs/tags/v ]]; then
             COMPOSE_PROJECT_NAME="freqtrade-production"
           else
             COMPOSE_PROJECT_NAME="freqtrade-staging"
