@@ -432,6 +432,9 @@ jobs:
         project_id: ${{ secrets.GCP_PROJECT_ID }}
 
     - name: Configure SSH for GCP VM
+      env:
+        GCP_SSH_PRIVATE_KEY: ${{ secrets.GCP_SSH_PRIVATE_KEY }}
+        GCP_VM_IP: ${{ secrets.GCP_VM_IP }}
       run: |
         echo "🔧 Configuring SSH for GCP VM access..."
 
@@ -440,15 +443,15 @@ jobs:
         chmod 700 ~/.ssh
 
         # Write SSH private key to file
-        echo "${{ secrets.GCP_SSH_PRIVATE_KEY }}" > /tmp/gcp_key
+        echo "$GCP_SSH_PRIVATE_KEY" > /tmp/gcp_key
         chmod 600 /tmp/gcp_key
 
         # Add GCP VM to known hosts
-        echo "🔗 Adding ${{ secrets.GCP_VM_IP }} to known hosts..."
-        if ssh-keyscan -H ${{ secrets.GCP_VM_IP }} >> ~/.ssh/known_hosts 2>/dev/null; then
-          echo "✅ Successfully added ${{ secrets.GCP_VM_IP }} to known hosts"
+        echo "🔗 Adding $GCP_VM_IP to known hosts..."
+        if ssh-keyscan -H $GCP_VM_IP >> ~/.ssh/known_hosts 2>/dev/null; then
+          echo "✅ Successfully added $GCP_VM_IP to known hosts"
         else
-          echo "⚠️  Could not resolve ${{ secrets.GCP_VM_IP }} - check if IP/hostname is correct"
+          echo "⚠️  Could not resolve $GCP_VM_IP - check if IP/hostname is correct"
         fi
 
     - name: Deploy to GCP VM
@@ -456,27 +459,29 @@ jobs:
         GH_DEPLOY_KEY: ${{ secrets.GH_DEPLOY_KEY }}
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         GITHUB_ACTOR: ${{ github.actor }}
+        GCP_VM_USER: ${{ secrets.GCP_VM_USER }}
+        GCP_VM_IP: ${{ secrets.GCP_VM_IP }}
       run: |
         echo "🚀 Starting deployment to GCP VM..."
-        echo "📍 Target: ${{ secrets.GCP_VM_USER }}@${{ secrets.GCP_VM_IP }}"
+        echo "📍 Target: $GCP_VM_USER@$GCP_VM_IP"
 
         # Test SSH connection first
         echo "🔗 Testing SSH connection..."
         if ! ssh -i /tmp/gcp_key -o StrictHostKeyChecking=no -o ConnectTimeout=10 \
-          ${{ secrets.GCP_VM_USER }}@${{ secrets.GCP_VM_IP }} "echo 'SSH connection successful'" >/dev/null 2>&1; then
+          $GCP_VM_USER@$GCP_VM_IP "echo 'SSH connection successful'" >/dev/null 2>&1; then
           echo "❌ SSH connection failed - check VM accessibility, IP, username, and SSH key"
           exit 1
         fi
 
         # SSH into GCP VM and run deployment process
         ssh -i /tmp/gcp_key -o StrictHostKeyChecking=no \
-          ${{ secrets.GCP_VM_USER }}@${{ secrets.GCP_VM_IP }} << EOF
+          $GCP_VM_USER@$GCP_VM_IP << EOF
           set -eux
 
           echo "--- Starting Deployment on GCP VM ---"
 
           # 1. Navigate to the project directory
-          if ! cd "/home/${{ secrets.GCP_VM_USER }}/freqtrade"; then
+          if ! cd "/home/$GCP_VM_USER/freqtrade"; then
             echo "❌ Freqtrade directory not found. Please ensure it is cloned."
             exit 1
           fi
@@ -553,28 +558,31 @@ jobs:
         EOF
 
     - name: Verify deployment
+      env:
+        GCP_VM_USER: ${{ secrets.GCP_VM_USER }}
+        GCP_VM_IP: ${{ secrets.GCP_VM_IP }}
       run: |
         echo "🔍 Verifying deployment..."
 
         # Test SSH connection for verification
         echo "🔗 Testing SSH connection for verification..."
         if ! ssh -i /tmp/gcp_key -o StrictHostKeyChecking=no -o ConnectTimeout=10 \
-          ${{ secrets.GCP_VM_USER }}@${{ secrets.GCP_VM_IP }} "echo 'SSH verification connection successful'" >/dev/null 2>&1; then
+          $GCP_VM_USER@$GCP_VM_IP "echo 'SSH verification connection successful'" >/dev/null 2>&1; then
           echo "❌ SSH verification connection failed - cannot verify deployment"
           exit 1
         fi
 
         # Check if services are running on GCP VM
         ssh -i /tmp/gcp_key -o StrictHostKeyChecking=no \
-          ${{ secrets.GCP_VM_USER }}@${{ secrets.GCP_VM_IP }} << EOF
+          $GCP_VM_USER@$GCP_VM_IP << EOF
 
           # Check if freqtrade directory exists (should exist after deployment)
-          if [ ! -d "/home/${{ secrets.GCP_VM_USER }}/freqtrade" ]; then
+          if [ ! -d "/home/$GCP_VM_USER/freqtrade" ]; then
             echo "❌ Freqtrade directory not found after deployment"
             exit 1
           fi
 
-          cd /home/${{ secrets.GCP_VM_USER }}/freqtrade
+          cd /home/$GCP_VM_USER/freqtrade
 
           echo "🔍 Checking Docker services status..."
           if command -v docker &> /dev/null && command -v docker compose &> /dev/null; then
@@ -600,15 +608,19 @@ jobs:
         EOF
 
     - name: Fetch bot container logs
+      env:
+        GCP_VM_USER: ${{ secrets.GCP_VM_USER }}
+        GCP_VM_IP: ${{ secrets.GCP_VM_IP }}
       run: |
         echo "📋 Waiting 3 minutes for bots to fully initialize..."
         sleep 180
         
         echo "📋 Fetching bot container logs..."
         
-        ssh -i /tmp/gcp_key -o StrictHostKeyChecking=no \
-          ${{ secrets.GCP_VM_USER }}@${{ secrets.GCP_VM_IP }} << 'EOF'
-          cd /home/${{ secrets.GCP_VM_USER }}/freqtrade
+        # Use shorter timeout and continue-on-error for log fetching
+        ssh -i /tmp/gcp_key -o StrictHostKeyChecking=no -o ConnectTimeout=5 \
+          $GCP_VM_USER@$GCP_VM_IP << 'EOF' || true
+          cd /home/$GCP_VM_USER/freqtrade
           
           # Determine project name based on deployment type
           if [[ "${{ github.ref }}" =~ ^refs/tags/v ]]; then

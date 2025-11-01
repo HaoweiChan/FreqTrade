@@ -51,6 +51,9 @@ else
   export BOT_PORT_PSAR=${BOT_PORT_PSAR:-8084}
   export BOT_PORT_MACDCCI=${BOT_PORT_MACDCCI:-8085}
 fi
+
+# Ensure DEPLOYMENT_ENV is exported for docker-compose
+export DEPLOYMENT_ENV
 echo ""
 
 echo -e "${GREEN}Step 1: Stopping current services...${NC}"
