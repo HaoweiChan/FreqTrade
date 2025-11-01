@@ -43,7 +43,7 @@ services:
       - "./user_data/ichi:/freqtrade/user_data"  # Isolated database and logs
       - "./user_data/strategies:/freqtrade/strategies"  # Resolve symlink ../strategies
     command: >
-      trade
+      freqtrade trade
       --config /freqtrade/user_data/config.json
       --strategy ichiV1
 
@@ -68,7 +68,7 @@ services:
       - "./user_data/lookahead:/freqtrade/user_data"  # Isolated database and logs
       - "./user_data/strategies:/freqtrade/strategies"  # Resolve symlink ../strategies
     command: >
-      trade
+      freqtrade trade
       --config /freqtrade/user_data/config.json
       --strategy LookaheadStrategy
 
@@ -93,7 +93,7 @@ services:
       - "./user_data/macd:/freqtrade/user_data"  # Isolated database and logs
       - "./user_data/strategies:/freqtrade/strategies"  # Resolve symlink ../strategies
     command: >
-      trade
+      freqtrade trade
       --config /freqtrade/user_data/config.json
       --strategy Macd
 
@@ -118,7 +118,7 @@ services:
       - "./user_data/psar:/freqtrade/user_data"  # Isolated database and logs
       - "./user_data/strategies:/freqtrade/strategies"  # Resolve symlink ../strategies
     command: >
-      trade
+      freqtrade trade
       --config /freqtrade/user_data/config.json
       --strategy CustomStoplossWithPSAR
 
@@ -143,6 +143,6 @@ services:
       - "./user_data/macdcci:/freqtrade/user_data"  # Isolated database and logs
       - "./user_data/strategies:/freqtrade/strategies"  # Resolve symlink ../strategies
     command: >
-      trade
+      freqtrade trade
       --config /freqtrade/user_data/config.json
       --strategy MACDCCI
