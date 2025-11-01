@@ -438,6 +438,19 @@ jobs:
       run: |
         echo "🔧 Configuring SSH for GCP VM access..."
 
+        # Verify secrets are available (check both environment and repository level)
+        if [ -z "${{ secrets.GCP_SSH_PRIVATE_KEY }}" ]; then
+          echo "❌ GCP_SSH_PRIVATE_KEY secret is not available"
+          echo "💡 Make sure secrets are set at repository level (Settings → Secrets and variables → Actions)"
+          echo "💡 If using environments, also check environment-level secrets (Settings → Environments)"
+          exit 1
+        fi
+        
+        if [ -z "${{ secrets.GCP_VM_IP }}" ]; then
+          echo "❌ GCP_VM_IP secret is not available"
+          exit 1
+        fi
+
         # Create .ssh directory if it doesn't exist
         mkdir -p ~/.ssh
         chmod 700 ~/.ssh
@@ -445,6 +458,12 @@ jobs:
         # Write SSH private key to file - use printf to handle multiline keys correctly
         printf '%s\n' "${{ secrets.GCP_SSH_PRIVATE_KEY }}" > /tmp/gcp_key
         chmod 600 /tmp/gcp_key
+        
+        # Verify the key file was created correctly
+        if [ ! -s /tmp/gcp_key ]; then
+          echo "❌ Failed to write SSH key file"
+          exit 1
+        fi
 
         # Add GCP VM to known hosts
         echo "🔗 Adding ${{ secrets.GCP_VM_IP }} to known hosts..."
@@ -460,14 +479,25 @@ jobs:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         GITHUB_ACTOR: ${{ github.actor }}
       run: |
+        # Verify required secrets are available
+        if [ -z "${{ secrets.GCP_VM_USER }}" ]; then
+          echo "❌ GCP_VM_USER secret is not available"
+          exit 1
+        fi
+        if [ -z "${{ secrets.GCP_VM_IP }}" ]; then
+          echo "❌ GCP_VM_IP secret is not available"
+          exit 1
+        fi
+        
         echo "🚀 Starting deployment to GCP VM..."
         echo "📍 Target: ${{ secrets.GCP_VM_USER }}@${{ secrets.GCP_VM_IP }}"
 
-        # Test SSH connection first
+        # Test SSH connection first with verbose output for debugging
         echo "🔗 Testing SSH connection..."
-        if ! ssh -i /tmp/gcp_key -o StrictHostKeyChecking=no -o ConnectTimeout=10 \
-          ${{ secrets.GCP_VM_USER }}@${{ secrets.GCP_VM_IP }} "echo 'SSH connection successful'" >/dev/null 2>&1; then
+        if ! ssh -i /tmp/gcp_key -o StrictHostKeyChecking=no -o ConnectTimeout=10 -v \
+          ${{ secrets.GCP_VM_USER }}@${{ secrets.GCP_VM_IP }} "echo 'SSH connection successful'" 2>&1 | head -20; then
           echo "❌ SSH connection failed - check VM accessibility, IP, username, and SSH key"
+          echo "💡 Verify secrets are set at repository level (Settings → Secrets and variables → Actions)"
           exit 1
         fi
 
