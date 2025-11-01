@@ -399,6 +399,9 @@ jobs:
     needs: [integration-test, security-scan]
     if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
     environment: ${{ startsWith(github.ref, 'refs/tags/v') && 'production' || 'staging' }}
+    # Note: Secrets can be set at repository level or environment level
+    # Environment-level secrets override repository-level secrets
+    # If secrets are the same for both environments, set them at repository level
 
     steps:
     - name: Checkout code
