@@ -54,23 +54,26 @@ fi
 echo ""
 
 echo -e "${GREEN}Step 1: Stopping current services...${NC}"
-docker-compose down
+# Use project name based on environment to allow both staging and production to run simultaneously
+COMPOSE_PROJECT_NAME="freqtrade-${DEPLOYMENT_ENV}"
+export COMPOSE_PROJECT_NAME
+docker-compose -p "$COMPOSE_PROJECT_NAME" down
 echo ""
 
 echo -e "${GREEN}Step 2: Pulling latest images from registry...${NC}"
 # The docker-compose.yml file will use the IMAGE_TAG variable
-docker-compose pull
+docker-compose -p "$COMPOSE_PROJECT_NAME" pull
 echo ""
 
 echo -e "${GREEN}Step 3: Starting services with pulled images...${NC}"
 # Start all services using pulled images (no rebuild)
-docker-compose up -d
+docker-compose -p "$COMPOSE_PROJECT_NAME" up -d
 echo ""
 
 echo -e "${GREEN}Step 4: Verifying deployment status...${NC}"
 # Wait for services to initialize
 sleep 15
-docker-compose ps
+docker-compose -p "$COMPOSE_PROJECT_NAME" ps
 echo ""
 
 echo -e "${GREEN}Step 5: Cleaning up old Docker images...${NC}"
@@ -80,5 +83,12 @@ echo ""
 echo -e "${GREEN}========================================${NC}"
 echo -e "${GREEN}  ✅ Deployment Complete!${NC}"
 echo -e "${GREEN}========================================${NC}"
+echo ""
+echo -e "${YELLOW}Deployment Summary:${NC}"
+echo -e "  Environment: ${DEPLOYMENT_ENV}"
+echo -e "  Image Tag: ${IMAGE_TAG}"
+echo -e "  UI Port: ${UI_PORT}"
+echo -e "  Bot Ports: ${BOT_PORT_ICHI}, ${BOT_PORT_LOOKAHEAD}, ${BOT_PORT_MACD}, ${BOT_PORT_PSAR}, ${BOT_PORT_MACDCCI}"
+echo -e "  Compose Project: ${COMPOSE_PROJECT_NAME}"
 echo ""
 
