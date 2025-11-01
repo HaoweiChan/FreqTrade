@@ -457,112 +457,109 @@ jobs:
         GH_DEPLOY_KEY: ${{ secrets.GH_DEPLOY_KEY }}
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         GITHUB_ACTOR: ${{ github.actor }}
+        GCP_VM_INSTANCE: ${{ secrets.GCP_VM_INSTANCE }}
+        GCP_VM_ZONE: ${{ secrets.GCP_VM_ZONE }}
       run: |
         # Verify required secrets are available
+        if [ -z "$GCP_VM_INSTANCE" ]; then
+          echo "❌ GCP_VM_INSTANCE secret is not available"
+          exit 1
+        fi
+        if [ -z "$GCP_VM_ZONE" ]; then
+          echo "❌ GCP_VM_ZONE secret is not available"
+          exit 1
+        fi
         if [ -z "${{ secrets.GCP_VM_USER }}" ]; then
           echo "❌ GCP_VM_USER secret is not available"
           exit 1
         fi
-        if [ -z "${{ secrets.GCP_VM_IP }}" ]; then
-          echo "❌ GCP_VM_IP secret is not available"
-          exit 1
-        fi
         
         echo "🚀 Starting deployment to GCP VM..."
-        echo "📍 Target: ${{ secrets.GCP_VM_USER }}@${{ secrets.GCP_VM_IP }}"
+        echo "📍 Target: $GCP_VM_INSTANCE in zone $GCP_VM_ZONE"
 
-        # Test SSH connection first with verbose output for debugging
-        echo "🔗 Testing SSH connection..."
-        if ! ssh -i /tmp/gcp_key -o StrictHostKeyChecking=no -o ConnectTimeout=10 -v \
-          ${{ secrets.GCP_VM_USER }}@${{ secrets.GCP_VM_IP }} "echo 'SSH connection successful'" 2>&1 | head -20; then
-          echo "❌ SSH connection failed - check VM accessibility, IP, username, and SSH key"
-          echo "💡 Verify secrets are set at repository level (Settings → Secrets and variables → Actions)"
-          exit 1
-        fi
-
-        # SSH into GCP VM and run deployment process
-        ssh -i /tmp/gcp_key -o StrictHostKeyChecking=no \
-          ${{ secrets.GCP_VM_USER }}@${{ secrets.GCP_VM_IP }} << EOF
+        # Deploy using gcloud compute ssh
+        gcloud compute ssh "$GCP_VM_INSTANCE" \
+          --zone="$GCP_VM_ZONE" \
+          --command="
           set -eux
 
-          echo "--- Starting Deployment on GCP VM ---"
+          echo '--- Starting Deployment on GCP VM ---'
 
           # 1. Navigate to the project directory
-          if ! cd "/home/${{ secrets.GCP_VM_USER }}/freqtrade"; then
-            echo "❌ Freqtrade directory not found. Please ensure it is cloned."
+          if ! cd \"/home/${{ secrets.GCP_VM_USER }}/freqtrade\"; then
+            echo '❌ Freqtrade directory not found. Please ensure it is cloned.'
             exit 1
           fi
 
           # 2. Configure GitHub access via SSH for git pull
-          echo "🔑 Configuring Git access..."
+          echo '🔑 Configuring Git access...'
           # Use printf to reliably write the multi-line secret
-          printf '%s\n' "${GH_DEPLOY_KEY}" > /tmp/gh_deploy_key
+          printf '%s\n' '${GH_DEPLOY_KEY}' > /tmp/gh_deploy_key
           chmod 600 /tmp/gh_deploy_key
-          export GIT_SSH_COMMAND="ssh -i /tmp/gh_deploy_key -o StrictHostKeyChecking=no"
+          export GIT_SSH_COMMAND=\"ssh -i /tmp/gh_deploy_key -o StrictHostKeyChecking=no\"
           git remote set-url origin git@github.com:HaoweiChan/FreqTrade.git
 
           # 3. Fetch and reset to latest code (handles divergent branches)
-          echo "📥 Fetching latest changes from Git..."
+          echo '📥 Fetching latest changes from Git...'
           if ! git fetch origin main; then
-            echo "❌ Failed to fetch latest changes from Git."
-            # Clean up the key even on failure
+            echo '❌ Failed to fetch latest changes from Git.'
             rm /tmp/gh_deploy_key
             exit 1
           fi
           
           # Fix file permissions before git reset (handles permission denied errors)
-          echo "🔧 Fixing file permissions..."
+          echo '🔧 Fixing file permissions...'
           sudo chown -R \$USER:\$USER user_data/ 2>/dev/null || true
           find user_data/ -type f -exec chmod 644 {} \; 2>/dev/null || true
           find user_data/ -type d -exec chmod 755 {} \; 2>/dev/null || true
           
-          echo "🔄 Resetting to remote main branch..."
+          echo '🔄 Resetting to remote main branch...'
           git reset --hard origin/main || {
-            echo "⚠️  git reset failed, trying with force..."
+            echo '⚠️  git reset failed, trying with force...'
             sudo git reset --hard origin/main
           }
           # Clean up the deploy key immediately after use
           rm -f /tmp/gh_deploy_key
 
           # 4. Authenticate to GitHub Container Registry
-          echo "🔐 Authenticating to GitHub Container Registry..."
+          echo '🔐 Authenticating to GitHub Container Registry...'
           # Use printf to reliably write the token
-          if ! printf '%s\n' "${GITHUB_TOKEN}" | docker login ${{ env.DOCKER_REGISTRY }} -u "${GITHUB_ACTOR}" --password-stdin; then
-            echo "❌ Docker login failed."
+          if ! printf '%s\n' '${GITHUB_TOKEN}' | docker login ${{ env.DOCKER_REGISTRY }} -u '${GITHUB_ACTOR}' --password-stdin; then
+            echo '❌ Docker login failed.'
             exit 1
           fi
 
           # 5. Set the image tag and deployment environment based on deployment type
           # Production: Use tag name (e.g., v0.1.0)
           # Staging: Use main-{sha} format
-          if [[ "${{ github.ref }}" =~ ^refs/tags/v ]]; then
-            export IMAGE_TAG="${GITHUB_REF#refs/tags/}"
-            export DEPLOYMENT_ENV="production"
-            echo "🏷️  Production deployment with tag: \$IMAGE_TAG"
+          if [[ '${{ github.ref }}' =~ ^refs/tags/v ]]; then
+            export IMAGE_TAG=\"\${GITHUB_REF#refs/tags/}\"
+            export DEPLOYMENT_ENV=\"production\"
+            echo \"🏷️  Production deployment with tag: \$IMAGE_TAG\"
           else
-            export IMAGE_TAG="main-$(echo "${{ github.sha }}" | cut -c1-7)"
-            export DEPLOYMENT_ENV="staging"
-            echo "🏷️  Staging deployment with tag: \$IMAGE_TAG"
+            export IMAGE_TAG=\"main-\$(echo '${{ github.sha }}' | cut -c1-7)\"
+            export DEPLOYMENT_ENV=\"staging\"
+            echo \"🏷️  Staging deployment with tag: \$IMAGE_TAG\"
           fi
 
           # 6. Set per-bot dry-run control (defaults to true for safety)
-          export ICHI_DRY_RUN="${{ secrets.ICHI_DRY_RUN || 'true' }}"
-          export LOOKAHEAD_DRY_RUN="${{ secrets.LOOKAHEAD_DRY_RUN || 'true' }}"
-          export MACD_DRY_RUN="${{ secrets.MACD_DRY_RUN || 'true' }}"
-          export PSAR_DRY_RUN="${{ secrets.PSAR_DRY_RUN || 'true' }}"
-          export MACDCCI_DRY_RUN="${{ secrets.MACDCCI_DRY_RUN || 'true' }}"
-          echo "🎯 Dry-run settings: ICHI=\$ICHI_DRY_RUN, MACD=\$MACD_DRY_RUN, PSAR=\$PSAR_DRY_RUN, MACDCCI=\$MACDCCI_DRY_RUN, LOOKAHEAD=\$LOOKAHEAD_DRY_RUN"
+          export ICHI_DRY_RUN=\"${{ secrets.ICHI_DRY_RUN || 'true' }}\"
+          export LOOKAHEAD_DRY_RUN=\"${{ secrets.LOOKAHEAD_DRY_RUN || 'true' }}\"
+          export MACD_DRY_RUN=\"${{ secrets.MACD_DRY_RUN || 'true' }}\"
+          export PSAR_DRY_RUN=\"${{ secrets.PSAR_DRY_RUN || 'true' }}\"
+          export MACDCCI_DRY_RUN=\"${{ secrets.MACDCCI_DRY_RUN || 'true' }}\"
+          echo \"🎯 Dry-run settings: ICHI=\$ICHI_DRY_RUN, MACD=\$MACD_DRY_RUN, PSAR=\$PSAR_DRY_RUN, MACDCCI=\$MACDCCI_DRY_RUN, LOOKAHEAD=\$LOOKAHEAD_DRY_RUN\"
 
           # 7. Run the simplified deployment script
-          echo "🚀 Executing deployment script..."
+          echo '🚀 Executing deployment script...'
           chmod +x scripts/deploy.sh
           if ! bash scripts/deploy.sh; then
-            echo "❌ Deployment script failed."
+            echo '❌ Deployment script failed.'
             exit 1
           fi
 
-          echo "--- ✅ Deployment on GCP VM Succeeded ---"
-        EOF
+          echo '--- ✅ Deployment on GCP VM Succeeded ---'
+          "
 
     - name: Verify deployment
       env:
@@ -645,7 +642,44 @@ jobs:
           done
         EOF
 
-    - name: Cleanup SSH key
-      if: always()
+    - name: Fetch bot container logs
+      env:
+        GCP_VM_INSTANCE: ${{ secrets.GCP_VM_INSTANCE }}
+        GCP_VM_ZONE: ${{ secrets.GCP_VM_ZONE }}
       run: |
-        rm -f /tmp/gcp_key
+        echo "📋 Waiting 3 minutes for bots to fully initialize..."
+        sleep 180
+        
+        echo "📋 Fetching bot container logs..."
+        
+        # Use gcloud compute ssh to fetch logs
+        gcloud compute ssh "$GCP_VM_INSTANCE" \
+          --zone="$GCP_VM_ZONE" \
+          --command="
+          cd /home/${{ secrets.GCP_VM_USER }}/freqtrade
+          
+          # Determine project name based on deployment type
+          if [[ '${{ github.ref }}' =~ ^refs/tags/v ]]; then
+            COMPOSE_PROJECT_NAME=\"freqtrade-production\"
+          else
+            COMPOSE_PROJECT_NAME=\"freqtrade-staging\"
+          fi
+          
+          echo ''
+          echo \"=== Container Status (Project: \$COMPOSE_PROJECT_NAME) ===\"
+          docker compose -p \"\$COMPOSE_PROJECT_NAME\" ps || echo \"Failed to get container status\"
+          
+          echo ''
+          echo \"=== Bot Logs (last 50 lines each) ===\"
+          
+          for service in freqtrade-ichiv1 freqtrade-lookaheadstrategy freqtrade-macd freqtrade-customstoplosswithpsar freqtrade-macdcci; do
+            echo ''
+            echo \"📊 Logs for \$service:\"
+            echo \"----------------------------------------\"
+            docker compose -p \"\$COMPOSE_PROJECT_NAME\" logs --tail=200 \$service 2>&1 || echo \"Failed to fetch logs for \$service\"
+            echo ''
+            echo \"📊 Process info for \$service:\"
+            docker compose -p \"\$COMPOSE_PROJECT_NAME\" exec -T \$service ps aux 2>&1 || echo \"Failed to get process info\"
+            echo ''
+          done
+          " || echo "⚠️  Failed to fetch logs - deployment may have succeeded but log fetching failed"
