@@ -503,53 +503,35 @@ jobs:
           --command="bash -c '
           set -e
           PROJECT_DIR=\"/home/${{ secrets.GCP_VM_USER }}/freqtrade\"
-          printf '\''%s\n'\'' \"\$GH_DEPLOY_KEY_ENV\" > /tmp/gh_deploy_key
-          chmod 600 /tmp/gh_deploy_key
-          export GIT_SSH_COMMAND='\''ssh -i /tmp/gh_deploy_key -o StrictHostKeyChecking=no'\''
-          if [ ! -d \"\$PROJECT_DIR/.git\" ]; then
-            echo \"Cloning repository for the first time...\"
-            mkdir -p \"\$PROJECT_DIR\"
-            git clone git@github.com:HaoweiChan/FreqTrade.git \"\$PROJECT_DIR\"
-          fi
           cd \"\$PROJECT_DIR\"
-          if ! git rev-parse --is-inside-work-tree > /dev/null 2>&1; then
-            echo '\''❌ Failed to change into a valid git repository.'\''
-            exit 1
-          fi
-          echo '\''🔑 Configuring Git access...'\''
-          git remote set-url origin git@github.com:HaoweiChan/FreqTrade.git
-          echo '\''📥 Fetching latest changes from Git...'\''
-          if ! git fetch origin main; then
-            echo '\''❌ Failed to fetch latest changes from Git.'\''
-            rm /tmp/gh_deploy_key
-            exit 1
-          fi
-          echo '\''🔄 Resetting to remote main branch...'\''
-          git reset --hard origin/main || {
-            echo '\''⚠️  git reset failed, trying with force...'\''
-            sudo git reset --hard origin/main
-          }
-          rm -f /tmp/gh_deploy_key
+
+          # The startup script now handles the initial clone.
+          # This script will now only pull the latest changes.
+          # NOTE: This requires the remote to be set to HTTPS or for a deploy key to be configured.
+          # For simplicity in this recovery, we assume HTTPS.
+          git pull origin main
+
           echo '\''🔐 Authenticating to GitHub Container Registry...'\''
           if ! printf '\''%s\n'\'' '${GITHUB_TOKEN}' | docker login ${{ env.DOCKER_REGISTRY }} -u '${GITHUB_ACTOR}' --password-stdin; then
             echo '\''❌ Docker login failed.'\''
             exit 1
           fi
+
           if [[ '\''${{ github.ref }}'\'' =~ ^refs/tags/v ]]; then
             export IMAGE_TAG=\"\${GITHUB_REF#refs/tags/}\"
             export DEPLOYMENT_ENV=\"production\"
-            echo \"🏷️  Production deployment with tag: \$IMAGE_TAG\"
           else
             export IMAGE_TAG=\"main-\$(echo '${{ github.sha }}' | cut -c1-7)\"
             export DEPLOYMENT_ENV=\"staging\"
-            echo \"🏷️  Staging deployment with tag: \$IMAGE_TAG\"
           fi
+          echo \"🏷️ Deployment: \$DEPLOYMENT_ENV with tag: \$IMAGE_TAG\"
+
           export ICHI_DRY_RUN=\"${{ secrets.ICHI_DRY_RUN || 'true' }}\"
           export LOOKAHEAD_DRY_RUN=\"${{ secrets.LOOKAHEAD_DRY_RUN || 'true' }}\"
           export MACD_DRY_RUN=\"${{ secrets.MACD_DRY_RUN || 'true' }}\"
           export PSAR_DRY_RUN=\"${{ secrets.PSAR_DRY_RUN || 'true' }}\"
           export MACDCCI_DRY_RUN=\"${{ secrets.MACDCCI_DRY_RUN || 'true' }}\"
-          echo \"🎯 Dry-run settings: ICHI=\$ICHI_DRY_RUN, MACD=\$MACD_DRY_RUN, PSAR=\$PSAR_DRY_RUN, MACDCCI=\$MACDCCI_DRY_RUN, LOOKAHEAD=\$LOOKAHEAD_DRY_RUN\"
+
           echo '\''🚀 Executing deployment script...'\''
           chmod +x scripts/deploy.sh
           if ! bash scripts/deploy.sh; then
