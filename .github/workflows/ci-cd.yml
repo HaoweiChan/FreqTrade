@@ -501,22 +501,30 @@ jobs:
           --zone="$GCP_VM_ZONE" \
           $IAP_FLAG \
           --command="
-          set -eux
+          set -e
 
-          echo '--- Starting Deployment on GCP VM ---'
+          PROJECT_DIR="/home/${{ secrets.GCP_VM_USER }}/freqtrade"
 
-          # 1. Navigate to the project directory
-          if ! cd \"/home/${{ secrets.GCP_VM_USER }}/freqtrade\"; then
-            echo '❌ Freqtrade directory not found. Please ensure it is cloned.'
+          # Configure SSH for git
+          printf '%s\n' '${GH_DEPLOY_KEY}' > /tmp/gh_deploy_key
+          chmod 600 /tmp/gh_deploy_key
+          export GIT_SSH_COMMAND='ssh -i /tmp/gh_deploy_key -o StrictHostKeyChecking=no'
+
+          if [ ! -d "\$PROJECT_DIR/.git" ]; then
+            echo "Cloning repository for the first time..."
+            mkdir -p "\$PROJECT_DIR"
+            git clone git@github.com:HaoweiChan/FreqTrade.git "\$PROJECT_DIR"
+          fi
+
+          cd "\$PROJECT_DIR"
+          if ! git rev-parse --is-inside-work-tree > /dev/null 2>&1; then
+            echo '❌ Failed to change into a valid git repository.'
             exit 1
           fi
 
           # 2. Configure GitHub access via SSH for git pull
           echo '🔑 Configuring Git access...'
           # Use printf to reliably write the multi-line secret
-          printf '%s\n' '${GH_DEPLOY_KEY}' > /tmp/gh_deploy_key
-          chmod 600 /tmp/gh_deploy_key
-          export GIT_SSH_COMMAND=\"ssh -i /tmp/gh_deploy_key -o StrictHostKeyChecking=no\"
           git remote set-url origin git@github.com:HaoweiChan/FreqTrade.git
 
           # 3. Fetch and reset to latest code (handles divergent branches)
@@ -527,12 +535,11 @@ jobs:
             exit 1
           fi
           
-          # Fix file permissions before git reset (handles permission denied errors)
-          echo '🔧 Fixing file permissions...'
-          sudo chown -R \$USER:\$USER user_data/ 2>/dev/null || true
-          find user_data/ -type f -exec chmod 644 {} \; 2>/dev/null || true
-          find user_data/ -type d -exec chmod 755 {} \; 2>/dev/null || true
-          
+          # This is better handled by the startup script creating the user
+          # echo '🔧 Fixing file permissions...'
+          # sudo chown -R \$USER:\$USER user_data/ 2>/dev/null || true
+          # find user_data/ -type f -exec chmod 644 {} \; 2>/dev/null || true
+          # find user_data/ -type d -exec chmod 755 {} \; 2>/dev/null || true
           echo '🔄 Resetting to remote main branch...'
           git reset --hard origin/main || {
             echo '⚠️  git reset failed, trying with force...'
