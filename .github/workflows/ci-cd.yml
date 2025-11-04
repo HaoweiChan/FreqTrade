@@ -503,7 +503,7 @@ jobs:
           --command="bash -c '
           set -e
           PROJECT_DIR=\"/home/${{ secrets.GCP_VM_USER }}/freqtrade\"
-          printf '\''%s\n'\'' '${GH_DEPLOY_KEY}' > /tmp/gh_deploy_key
+          printf '\''%s\n'\'' \"\$GH_DEPLOY_KEY_ENV\" > /tmp/gh_deploy_key
           chmod 600 /tmp/gh_deploy_key
           export GIT_SSH_COMMAND='\''ssh -i /tmp/gh_deploy_key -o StrictHostKeyChecking=no'\''
           if [ ! -d \"\$PROJECT_DIR/.git\" ]; then
