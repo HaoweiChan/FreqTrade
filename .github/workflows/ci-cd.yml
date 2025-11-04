@@ -500,66 +500,42 @@ jobs:
         gcloud compute ssh "$GCP_VM_INSTANCE" \
           --zone="$GCP_VM_ZONE" \
           $IAP_FLAG \
-          --command="
+          --command="bash -c '
           set -e
-
-          PROJECT_DIR="/home/${{ secrets.GCP_VM_USER }}/freqtrade"
-
-          # Configure SSH for git
-          printf '%s\n' '${GH_DEPLOY_KEY}' > /tmp/gh_deploy_key
+          PROJECT_DIR=\"/home/${{ secrets.GCP_VM_USER }}/freqtrade\"
+          printf '\''%s\n'\'' '${GH_DEPLOY_KEY}' > /tmp/gh_deploy_key
           chmod 600 /tmp/gh_deploy_key
-          export GIT_SSH_COMMAND='ssh -i /tmp/gh_deploy_key -o StrictHostKeyChecking=no'
-
-          if [ ! -d "\$PROJECT_DIR/.git" ]; then
-            echo "Cloning repository for the first time..."
-            mkdir -p "\$PROJECT_DIR"
-            git clone git@github.com:HaoweiChan/FreqTrade.git "\$PROJECT_DIR"
+          export GIT_SSH_COMMAND='\''ssh -i /tmp/gh_deploy_key -o StrictHostKeyChecking=no'\''
+          if [ ! -d \"\$PROJECT_DIR/.git\" ]; then
+            echo \"Cloning repository for the first time...\"
+            mkdir -p \"\$PROJECT_DIR\"
+            git clone git@github.com:HaoweiChan/FreqTrade.git \"\$PROJECT_DIR\"
           fi
-
-          cd "\$PROJECT_DIR"
+          cd \"\$PROJECT_DIR\"
           if ! git rev-parse --is-inside-work-tree > /dev/null 2>&1; then
-            echo '❌ Failed to change into a valid git repository.'
+            echo '\''❌ Failed to change into a valid git repository.'\''
             exit 1
           fi
-
-          # 2. Configure GitHub access via SSH for git pull
-          echo '🔑 Configuring Git access...'
-          # Use printf to reliably write the multi-line secret
+          echo '\''🔑 Configuring Git access...'\''
           git remote set-url origin git@github.com:HaoweiChan/FreqTrade.git
-
-          # 3. Fetch and reset to latest code (handles divergent branches)
-          echo '📥 Fetching latest changes from Git...'
+          echo '\''📥 Fetching latest changes from Git...'\''
           if ! git fetch origin main; then
-            echo '❌ Failed to fetch latest changes from Git.'
+            echo '\''❌ Failed to fetch latest changes from Git.'\''
             rm /tmp/gh_deploy_key
             exit 1
           fi
-          
-          # This is better handled by the startup script creating the user
-          # echo '🔧 Fixing file permissions...'
-          # sudo chown -R \$USER:\$USER user_data/ 2>/dev/null || true
-          # find user_data/ -type f -exec chmod 644 {} \; 2>/dev/null || true
-          # find user_data/ -type d -exec chmod 755 {} \; 2>/dev/null || true
-          echo '🔄 Resetting to remote main branch...'
+          echo '\''🔄 Resetting to remote main branch...'\''
           git reset --hard origin/main || {
-            echo '⚠️  git reset failed, trying with force...'
+            echo '\''⚠️  git reset failed, trying with force...'\''
             sudo git reset --hard origin/main
           }
-          # Clean up the deploy key immediately after use
           rm -f /tmp/gh_deploy_key
-
-          # 4. Authenticate to GitHub Container Registry
-          echo '🔐 Authenticating to GitHub Container Registry...'
-          # Use printf to reliably write the token
-          if ! printf '%s\n' '${GITHUB_TOKEN}' | docker login ${{ env.DOCKER_REGISTRY }} -u '${GITHUB_ACTOR}' --password-stdin; then
-            echo '❌ Docker login failed.'
+          echo '\''🔐 Authenticating to GitHub Container Registry...'\''
+          if ! printf '\''%s\n'\'' '${GITHUB_TOKEN}' | docker login ${{ env.DOCKER_REGISTRY }} -u '${GITHUB_ACTOR}' --password-stdin; then
+            echo '\''❌ Docker login failed.'\''
             exit 1
           fi
-
-          # 5. Set the image tag and deployment environment based on deployment type
-          # Production: Use tag name (e.g., v0.1.0)
-          # Staging: Use main-{sha} format
-          if [[ '${{ github.ref }}' =~ ^refs/tags/v ]]; then
+          if [[ '\''${{ github.ref }}'\'' =~ ^refs/tags/v ]]; then
             export IMAGE_TAG=\"\${GITHUB_REF#refs/tags/}\"
             export DEPLOYMENT_ENV=\"production\"
             echo \"🏷️  Production deployment with tag: \$IMAGE_TAG\"
@@ -568,25 +544,20 @@ jobs:
             export DEPLOYMENT_ENV=\"staging\"
             echo \"🏷️  Staging deployment with tag: \$IMAGE_TAG\"
           fi
-
-          # 6. Set per-bot dry-run control (defaults to true for safety)
           export ICHI_DRY_RUN=\"${{ secrets.ICHI_DRY_RUN || 'true' }}\"
           export LOOKAHEAD_DRY_RUN=\"${{ secrets.LOOKAHEAD_DRY_RUN || 'true' }}\"
           export MACD_DRY_RUN=\"${{ secrets.MACD_DRY_RUN || 'true' }}\"
           export PSAR_DRY_RUN=\"${{ secrets.PSAR_DRY_RUN || 'true' }}\"
           export MACDCCI_DRY_RUN=\"${{ secrets.MACDCCI_DRY_RUN || 'true' }}\"
           echo \"🎯 Dry-run settings: ICHI=\$ICHI_DRY_RUN, MACD=\$MACD_DRY_RUN, PSAR=\$PSAR_DRY_RUN, MACDCCI=\$MACDCCI_DRY_RUN, LOOKAHEAD=\$LOOKAHEAD_DRY_RUN\"
-
-          # 7. Run the simplified deployment script
-          echo '🚀 Executing deployment script...'
+          echo '\''🚀 Executing deployment script...'\''
           chmod +x scripts/deploy.sh
           if ! bash scripts/deploy.sh; then
-            echo '❌ Deployment script failed.'
+            echo '\''❌ Deployment script failed.'\''
             exit 1
           fi
-
-          echo '--- ✅ Deployment on GCP VM Succeeded ---'
-          "
+          echo '\''--- ✅ Deployment on GCP VM Succeeded ---'\''
+          '"
 
     - name: Verify deployment
       env:
