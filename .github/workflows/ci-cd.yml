@@ -510,7 +510,20 @@ jobs:
           sudo mkdir -p \"\$PROJECT_DIR\"
           sudo chown -R \"\$TARGET_USER\":\"\$TARGET_USER\" \"\$PROJECT_DIR\"
 
-          sudo -H -u \"\$TARGET_USER\" bash -c \"
+          sudo -H -u \"\$TARGET_USER\" /usr/bin/env \
+            PROJECT_DIR=\"\$PROJECT_DIR\" \
+            REPO_URL=\"\$REPO_URL\" \
+            DOCKER_REGISTRY=\"${{ env.DOCKER_REGISTRY }}\" \
+            GITHUB_TOKEN=\"\$GITHUB_TOKEN\" \
+            GITHUB_ACTOR=\"\$GITHUB_ACTOR\" \
+            GITHUB_REF='${{ github.ref }}' \
+            GITHUB_SHA='${{ github.sha }}' \
+            ICHI_DRY_RUN=\"${{ secrets.ICHI_DRY_RUN || 'true' }}\" \
+            LOOKAHEAD_DRY_RUN=\"${{ secrets.LOOKAHEAD_DRY_RUN || 'true' }}\" \
+            MACD_DRY_RUN=\"${{ secrets.MACD_DRY_RUN || 'true' }}\" \
+            PSAR_DRY_RUN=\"${{ secrets.PSAR_DRY_RUN || 'true' }}\" \
+            MACDCCI_DRY_RUN=\"${{ secrets.MACDCCI_DRY_RUN || 'true' }}\" \
+            bash -c \"
           set -e
           if [ ! -d \\\"\$PROJECT_DIR/.git\\\" ]; then
             echo \\\"⚠️  Git metadata missing on VM - recloning repository\\\"
@@ -533,25 +546,21 @@ jobs:
           git reset --hard origin/main
 
           echo '🔐 Authenticating to GitHub Container Registry...'
-          if ! printf '%s\\n' \\\"\\\$GITHUB_TOKEN\\\" | docker login \\\"${{ env.DOCKER_REGISTRY }}\\\" -u \\\"${{ github.actor }}\\\" --password-stdin; then
+          if ! printf '%s\\n' \\\"\\\$GITHUB_TOKEN\\\" | docker login \\\"\\\$DOCKER_REGISTRY\\\" -u \\\"\\\$GITHUB_ACTOR\\\" --password-stdin; then
             echo '❌ Docker login failed.'
             exit 1
           fi
 
-          if [[ '${{ github.ref }}' =~ ^refs/tags/v ]]; then
+          if [[ \\\"\$GITHUB_REF\\\" =~ ^refs/tags/v ]]; then
             export IMAGE_TAG=\\\"\\\${GITHUB_REF#refs/tags/}\\\"
             export DEPLOYMENT_ENV=\\\"production\\\"
           else
-            export IMAGE_TAG=\\\"main-\\\$(echo '${{ github.sha }}' | cut -c1-7)\\\"
+            export IMAGE_TAG=\\\"main-\\\$(echo \\\"\$GITHUB_SHA\\\" | cut -c1-7)\\\"
             export DEPLOYMENT_ENV=\\\"staging\\\"
           fi
           echo \\\"🏷️ Deployment: \\$DEPLOYMENT_ENV with tag: \\$IMAGE_TAG\\\"
 
-          export ICHI_DRY_RUN=\\\"${{ secrets.ICHI_DRY_RUN || 'true' }}\\\"
-          export LOOKAHEAD_DRY_RUN=\\\"${{ secrets.LOOKAHEAD_DRY_RUN || 'true' }}\\\"
-          export MACD_DRY_RUN=\\\"${{ secrets.MACD_DRY_RUN || 'true' }}\\\"
-          export PSAR_DRY_RUN=\\\"${{ secrets.PSAR_DRY_RUN || 'true' }}\\\"
-          export MACDCCI_DRY_RUN=\\\"${{ secrets.MACDCCI_DRY_RUN || 'true' }}\\\"
+          export ICHI_DRY_RUN LOOKAHEAD_DRY_RUN MACD_DRY_RUN PSAR_DRY_RUN MACDCCI_DRY_RUN
 
           echo '🚀 Executing deployment script...'
           chmod +x scripts/deploy.sh
