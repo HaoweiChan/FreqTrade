@@ -503,13 +503,26 @@ jobs:
           --command="bash -c '
           set -e
           PROJECT_DIR=\"/home/${{ secrets.GCP_VM_USER }}/freqtrade\"
+          REPO_URL=\"https://github.com/${{ github.repository }}.git\"
+
+          if [ ! -d \"\$PROJECT_DIR/.git\" ]; then
+            echo \"⚠️  Git metadata missing on VM - recloning repository\"
+            rm -rf \"\$PROJECT_DIR\"
+            git clone \"\$REPO_URL\" \"\$PROJECT_DIR\"
+          fi
+
           cd \"\$PROJECT_DIR\"
 
-          # The startup script now handles the initial clone.
-          # This script will now only pull the latest changes.
-          # NOTE: This requires the remote to be set to HTTPS or for a deploy key to be configured.
-          # For simplicity in this recovery, we assume HTTPS.
-          git pull origin main
+          CURRENT_REMOTE=\$(git remote get-url origin 2>/dev/null || echo \"\")
+          if [ \"\$CURRENT_REMOTE\" != \"\$REPO_URL\" ]; then
+            echo \"🔁 Updating remote URL to \$REPO_URL\"
+            git remote set-url origin \"\$REPO_URL\"
+          fi
+
+          echo \"📥 Syncing repository on VM...\"
+          git fetch origin main --tags --prune
+          git checkout main
+          git reset --hard origin/main
 
           echo '\''🔐 Authenticating to GitHub Container Registry...'\''
           if ! printf '\''%s\n'\'' '${GITHUB_TOKEN}' | docker login ${{ env.DOCKER_REGISTRY }} -u '${GITHUB_ACTOR}' --password-stdin; then
