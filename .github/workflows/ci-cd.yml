@@ -521,6 +521,12 @@ jobs:
             export MACD_DRY_RUN='${{ secrets.MACD_DRY_RUN || 'true' }}'
             export PSAR_DRY_RUN='${{ secrets.PSAR_DRY_RUN || 'true' }}'
             export MACDCCI_DRY_RUN='${{ secrets.MACDCCI_DRY_RUN || 'true' }}'
+            export BINANCE_KEY='${{ secrets.BINANCE_KEY }}'
+            export BINANCE_SECRET='${{ secrets.BINANCE_SECRET }}'
+            export TELEGRAM_TOKEN='${{ secrets.TELEGRAM_TOKEN }}'
+            export TELEGRAM_CHAT_ID='${{ secrets.TELEGRAM_CHAT_ID }}'
+            export FT_UI_USERNAME='${{ secrets.FT_UI_USERNAME }}'
+            export FT_UI_PASSWORD='${{ secrets.FT_UI_PASSWORD }}'
             
             chmod +x /tmp/deploy-setup.sh
             bash /tmp/deploy-setup.sh
