@@ -500,87 +500,65 @@ jobs:
         gcloud compute ssh "$GCP_VM_INSTANCE" \
           --zone="$GCP_VM_ZONE" \
           $IAP_FLAG \
-          --command="bash <<REMOTE
-set -e
-sudo git config --system --add safe.directory \"*\" >/dev/null 2>&1 || true
-TARGET_USER=\"${{ secrets.GCP_VM_USER }}\"
-PROJECT_DIR=\"/home/${{ secrets.GCP_VM_USER }}/freqtrade\"
-REPO_URL=\"https://github.com/${{ github.repository }}.git\"
-REF_VALUE='${{ github.ref }}'
-SHA_VALUE='${{ github.sha }}'
+          --command="bash -c '
+          set -e
+          sudo git config --system --add safe.directory \"*\" >/dev/null 2>&1 || true
+          TARGET_USER=\"${{ secrets.GCP_VM_USER }}\"
+          PROJECT_DIR=\"/home/${{ secrets.GCP_VM_USER }}/freqtrade\"
+          REPO_URL=\"https://github.com/${{ github.repository }}.git\"
 
-sudo mkdir -p \"$PROJECT_DIR\"
-sudo chown -R \"$TARGET_USER\":\"$TARGET_USER\" \"$PROJECT_DIR\"
+          sudo mkdir -p \"\$PROJECT_DIR\"
+          sudo chown -R \"\$TARGET_USER\":\"\$TARGET_USER\" \"\$PROJECT_DIR\"
 
-if [[ \"$REF_VALUE\" =~ ^refs/tags/v ]]; then
-  IMAGE_TAG=\"${REF_VALUE#refs/tags/}\"
-  DEPLOYMENT_ENV=\"production\"
-else
-  IMAGE_TAG=\"main-$(echo \"$SHA_VALUE\" | cut -c1-7)\"
-  DEPLOYMENT_ENV=\"staging\"
-fi
-echo \"🏷️ Deployment: $DEPLOYMENT_ENV with tag: $IMAGE_TAG\"
+          if [ ! -d \"\$PROJECT_DIR/.git\" ]; then
+            echo \"⚠️  Git metadata missing on VM - recloning repository\"
+            rm -rf \"\$PROJECT_DIR\"
+            git clone \"\$REPO_URL\" \"\$PROJECT_DIR\"
+          fi
 
-sudo -H -u \"$TARGET_USER\" /usr/bin/env \
-  PROJECT_DIR=\"$PROJECT_DIR\" \
-  REPO_URL=\"$REPO_URL\" \
-  DOCKER_REGISTRY=\"${{ env.DOCKER_REGISTRY }}\" \
-  GITHUB_TOKEN=\"$GITHUB_TOKEN\" \
-  GITHUB_ACTOR=\"$GITHUB_ACTOR\" \
-  IMAGE_TAG=\"$IMAGE_TAG\" \
-  DEPLOYMENT_ENV=\"$DEPLOYMENT_ENV\" \
-  ICHI_DRY_RUN=\"${{ secrets.ICHI_DRY_RUN || 'true' }}\" \
-  LOOKAHEAD_DRY_RUN=\"${{ secrets.LOOKAHEAD_DRY_RUN || 'true' }}\" \
-  MACD_DRY_RUN=\"${{ secrets.MACD_DRY_RUN || 'true' }}\" \
-  PSAR_DRY_RUN=\"${{ secrets.PSAR_DRY_RUN || 'true' }}\" \
-  MACDCCI_DRY_RUN=\"${{ secrets.MACDCCI_DRY_RUN || 'true' }}\" \
-  bash <<EOS
-set -e
-git config --global --add safe.directory \"$PROJECT_DIR\" >/dev/null 2>&1 || true
-git config --global --add safe.directory \"*\" >/dev/null 2>&1 || true
+          cd \"\$PROJECT_DIR\"
+          git config --global --add safe.directory \"\$PROJECT_DIR\" >/dev/null 2>&1 || true
 
-if [ ! -d \"$PROJECT_DIR/.git\" ]; then
-  echo \"⚠️  Git metadata missing on VM - recloning repository\"
-  rm -rf \"$PROJECT_DIR\"
-  git clone \"$REPO_URL\" \"$PROJECT_DIR\"
-fi
+          CURRENT_REMOTE=\$(git remote get-url origin 2>/dev/null || echo \"\")
+          if [ \"\$CURRENT_REMOTE\" != \"\$REPO_URL\" ]; then
+            echo \"🔁 Updating remote URL to \$REPO_URL\"
+            git remote set-url origin \"\$REPO_URL\"
+          fi
 
-cd \"$PROJECT_DIR\"
+          echo \"📥 Syncing repository on VM...\"
+          git fetch origin main --tags --prune
+          git checkout main
+          git reset --hard origin/main
 
-CURRENT_REMOTE=$(git remote get-url origin 2>/dev/null || echo \"\")
-if [ \"$CURRENT_REMOTE\" != \"$REPO_URL\" ]; then
-  echo \"🔁 Updating remote URL to $REPO_URL\"
-  git remote set-url origin \"$REPO_URL\"
-fi
+          echo '\''🔐 Authenticating to GitHub Container Registry...'\''
+          if ! printf '\''%s\n'\'' '${GITHUB_TOKEN}' | docker login ${{ env.DOCKER_REGISTRY }} -u '${GITHUB_ACTOR}' --password-stdin; then
+            echo '\''❌ Docker login failed.'\''
+            exit 1
+          fi
 
-echo \"📥 Syncing repository on VM...\"
-git fetch origin main --tags --prune
-git checkout main
-git reset --hard origin/main
+          if [[ '\''${{ github.ref }}'\'' =~ ^refs/tags/v ]]; then
+            export IMAGE_TAG=\"\${GITHUB_REF#refs/tags/}\"
+            export DEPLOYMENT_ENV=\"production\"
+          else
+            export IMAGE_TAG=\"main-\$(echo '${{ github.sha }}' | cut -c1-7)\"
+            export DEPLOYMENT_ENV=\"staging\"
+          fi
+          echo \"🏷️ Deployment: \$DEPLOYMENT_ENV with tag: \$IMAGE_TAG\"
 
-echo \"🔐 Authenticating to GitHub Container Registry...\"
-if ! printf '%s\n' \"$GITHUB_TOKEN\" | docker login \"$DOCKER_REGISTRY\" -u \"$GITHUB_ACTOR\" --password-stdin; then
-  echo \"❌ Docker login failed.\"
-  exit 1
-fi
+          export ICHI_DRY_RUN=\"${{ secrets.ICHI_DRY_RUN || 'true' }}\"
+          export LOOKAHEAD_DRY_RUN=\"${{ secrets.LOOKAHEAD_DRY_RUN || 'true' }}\"
+          export MACD_DRY_RUN=\"${{ secrets.MACD_DRY_RUN || 'true' }}\"
+          export PSAR_DRY_RUN=\"${{ secrets.PSAR_DRY_RUN || 'true' }}\"
+          export MACDCCI_DRY_RUN=\"${{ secrets.MACDCCI_DRY_RUN || 'true' }}\"
 
-export ICHI_DRY_RUN
-export LOOKAHEAD_DRY_RUN
-export MACD_DRY_RUN
-export PSAR_DRY_RUN
-export MACDCCI_DRY_RUN
-export IMAGE_TAG
-export DEPLOYMENT_ENV
-
-echo \"🚀 Executing deployment script...\"
-chmod +x scripts/deploy.sh
-if ! bash scripts/deploy.sh; then
-  echo \"❌ Deployment script failed.\"
-  exit 1
-fi
-echo \"--- ✅ Deployment on GCP VM Succeeded ---\"
-EOS
-REMOTE"
+          echo '\''🚀 Executing deployment script...'\''
+          chmod +x scripts/deploy.sh
+          if ! bash scripts/deploy.sh; then
+            echo '\''❌ Deployment script failed.'\''
+            exit 1
+          fi
+          echo '\''--- ✅ Deployment on GCP VM Succeeded ---'\''
+          '"
 
     - name: Verify deployment
       env:
