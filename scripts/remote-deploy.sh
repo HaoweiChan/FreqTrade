@@ -2,7 +2,7 @@
 set -e
 
 # This script is executed on the remote VM to set up the environment and deploy
-# It expects necessary environment variables to be set by the caller or substituted
+# It expects necessary environment variables to be set by the caller
 
 # Required variables (passed via env):
 # TARGET_USER
@@ -15,21 +15,48 @@ set -e
 # GITHUB_SHA
 # DRY_RUN flags...
 
-echo "🔧 Setting up deployment environment on VM..."
+CURRENT_USER=$(whoami)
 
-# Ensure target directory exists
-if [ ! -d "$PROJECT_DIR" ]; then
-  echo "📂 Creating project directory: $PROJECT_DIR"
-  sudo mkdir -p "$PROJECT_DIR"
-  sudo chown -R "$TARGET_USER":"$TARGET_USER" "$PROJECT_DIR"
+# ------------------------------------------------------------------------------
+# Phase 1: Privilege / User Switching
+# ------------------------------------------------------------------------------
+# If not explicitly running as target (flag check), handle permissions and user switch
+if [ "$1" != "--as-target" ]; then
+    echo "🔧 Initial setup running as: $CURRENT_USER"
+    echo "🎯 Target user: $TARGET_USER"
+    
+    # Ensure target directory exists
+    if [ ! -d "$PROJECT_DIR" ]; then
+        echo "📂 Creating project directory: $PROJECT_DIR"
+        sudo mkdir -p "$PROJECT_DIR"
+    fi
+
+    echo "🔧 Enforcing ownership of $PROJECT_DIR to $TARGET_USER..."
+    # We use sudo to ensure we can chown even if owned by root from previous runs
+    sudo chown -R "$TARGET_USER":"$TARGET_USER" "$PROJECT_DIR"
+
+    # If we are not the target user, switch context
+    if [ "$CURRENT_USER" != "$TARGET_USER" ]; then
+        echo "👤 Switching execution context to $TARGET_USER..."
+        # Use sudo -E to preserve environment variables
+        # Exec replaces the current process
+        exec sudo -E -u "$TARGET_USER" bash "$0" --as-target
+    else
+        echo "✅ Already running as $TARGET_USER"
+    fi
 fi
+
+# ------------------------------------------------------------------------------
+# Phase 2: Deployment Logic (Running as TARGET_USER)
+# ------------------------------------------------------------------------------
+echo "🚀 Starting deployment logic as $(whoami)..."
 
 # Allow git to trust this directory (global config for the target user context)
 git config --global --add safe.directory "$PROJECT_DIR" >/dev/null 2>&1 || true
 
 if [ ! -d "$PROJECT_DIR/.git" ]; then
   echo "⚠️  Git metadata missing - cloning repository..."
-  # Clear dir just in case
+  # We can safely rm/mkdir here because we own the directory now
   rm -rf "$PROJECT_DIR"
   mkdir -p "$PROJECT_DIR"
   git clone "$REPO_URL" "$PROJECT_DIR"
@@ -45,6 +72,8 @@ if [ "$CURRENT_REMOTE" != "$REPO_URL" ]; then
 fi
 
 echo "📥 Syncing repository..."
+# Fix for 'permission denied' on fetch if ownership was quirky:
+# (Should be solved by Phase 1, but just in case)
 git fetch origin main --tags --prune
 git checkout main
 git reset --hard origin/main
@@ -77,4 +106,3 @@ if ! bash scripts/deploy.sh; then
 fi
 
 echo "--- ✅ Deployment on GCP VM Succeeded ---"
-
