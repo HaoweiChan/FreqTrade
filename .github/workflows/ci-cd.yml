@@ -516,8 +516,8 @@ jobs:
             DOCKER_REGISTRY=\"${{ env.DOCKER_REGISTRY }}\" \
             GITHUB_TOKEN=\"\$GITHUB_TOKEN\" \
             GITHUB_ACTOR=\"\$GITHUB_ACTOR\" \
-            GITHUB_REF='${{ github.ref }}' \
-            GITHUB_SHA='${{ github.sha }}' \
+            GITHUB_REF=${{ github.ref }} \
+            GITHUB_SHA=${{ github.sha }} \
             ICHI_DRY_RUN=\"${{ secrets.ICHI_DRY_RUN || 'true' }}\" \
             LOOKAHEAD_DRY_RUN=\"${{ secrets.LOOKAHEAD_DRY_RUN || 'true' }}\" \
             MACD_DRY_RUN=\"${{ secrets.MACD_DRY_RUN || 'true' }}\" \
