@@ -56,11 +56,33 @@ fi
 export DEPLOYMENT_ENV
 echo ""
 
+# Function to release ports if occupied by orphan containers
+release_port() {
+  local port=$1
+  if [ -n "$port" ]; then
+    # Find container ID that binds to this port (0.0.0.0:port->...)
+    local conflicting_container=$(docker ps --format "{{.ID}} {{.Ports}}" | grep ":${port}-" | awk '{print $1}')
+    if [ -n "$conflicting_container" ]; then
+      echo -e "${YELLOW}⚠️  Port $port is occupied by container $conflicting_container. Force removing...${NC}"
+      docker rm -f "$conflicting_container" || true
+    fi
+  fi
+}
+
 echo -e "${GREEN}Step 1: Stopping current services...${NC}"
 # Use project name based on environment to allow both staging and production to run simultaneously
 COMPOSE_PROJECT_NAME="freqtrade-${DEPLOYMENT_ENV}"
 export COMPOSE_PROJECT_NAME
 docker-compose -p "$COMPOSE_PROJECT_NAME" down
+
+# Extra safety: Ensure ports are free
+echo -e "${GREEN}Step 1.1: Verifying ports are free...${NC}"
+release_port "$UI_PORT"
+release_port "$BOT_PORT_ICHI"
+release_port "$BOT_PORT_LOOKAHEAD"
+release_port "$BOT_PORT_MACD"
+release_port "$BOT_PORT_PSAR"
+release_port "$BOT_PORT_MACDCCI"
 echo ""
 
 echo -e "${GREEN}Step 2: Pulling latest images from registry...${NC}"
