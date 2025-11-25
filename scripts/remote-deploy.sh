@@ -39,8 +39,9 @@ if [ "$1" != "--as-target" ]; then
     if [ "$CURRENT_USER" != "$TARGET_USER" ]; then
         echo "👤 Switching execution context to $TARGET_USER..."
         # Use sudo -E to preserve environment variables
+        # Use -H to set HOME to the target user's home directory
         # Exec replaces the current process
-        exec sudo -E -u "$TARGET_USER" bash "$0" --as-target
+        exec sudo -H -E -u "$TARGET_USER" bash "$0" --as-target
     else
         echo "✅ Already running as $TARGET_USER"
     fi
