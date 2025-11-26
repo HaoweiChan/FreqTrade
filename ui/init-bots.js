@@ -16,7 +16,8 @@
   // Expose for UI components that might read this
   window.freqtradeBots = bots.map(b => ({ name: b.name, apiUrl: b.url }));
 
-  // Seed localStorage so the bots list shows up immediately and login dialog is prefilled
+  // Seed localStorage so the bots list shows up immediately.
+  // Authentication is intentionally NOT pre-filled to ensure security.
   try {
     const storeKey = 'ftAuthLoginInfo';
     const existing = JSON.parse(localStorage.getItem(storeKey) || '{}');
@@ -27,7 +28,8 @@
       const desired = {
         botName: b.name,
         apiUrl: b.url,
-        username: '__FT_UI_USERNAME__',
+        // Preserve existing auth if any, otherwise leave empty
+        username: current.username || '',
         accessToken: current.accessToken || '',
         refreshToken: current.refreshToken || '',
         autoRefresh: true,
@@ -37,55 +39,24 @@
     });
 
     entries.forEach(({ id, desired }) => {
-      if (JSON.stringify(existing[id] || {}) !== JSON.stringify(desired)) {
-        existing[id] = desired;
-        changed = true;
+      // Only update if the bot config (URL/Name) changed, preserving auth
+      if (existing[id]?.apiUrl !== desired.apiUrl || existing[id]?.botName !== desired.botName) {
+         // If URL changed, we might want to reset auth? 
+         // For now, just update the config part
+         existing[id] = { ...existing[id], ...desired };
+         changed = true;
+      } else if (!existing[id]) {
+         existing[id] = desired;
+         changed = true;
       }
     });
     if (changed) localStorage.setItem(storeKey, JSON.stringify(existing));
 
-    // Select first bot by default
-    localStorage.setItem('ftSelectedBot', 'ftbot.1');
+    // Select first bot by default if not selected
+    if (!localStorage.getItem('ftSelectedBot')) {
+      localStorage.setItem('ftSelectedBot', 'ftbot.1');
+    }
   } catch (e) {
     console.warn('Failed to seed FreqUI bots:', e);
   }
-
-  // Attempt auto-login to fetch tokens for each bot
-  (async () => {
-    try {
-      const storeKey = 'ftAuthLoginInfo';
-      const store = JSON.parse(localStorage.getItem(storeKey) || '{}');
-      const creds = 'Basic ' + btoa('__FT_UI_USERNAME__:__FT_UI_PASSWORD__');
-      let updated = false;
-      await Promise.all(
-        bots.map(async (b, idx) => {
-          const id = `ftbot.${idx + 1}`;
-          const rec = store[id] || {};
-          if (rec.accessToken && rec.refreshToken) return;
-          try {
-            const resp = await fetch(b.url.replace(/\/$/, '') + '/api/v1/token/login', {
-              method: 'POST',
-              headers: { Authorization: creds },
-              credentials: 'omit',
-            });
-            if (!resp.ok) return;
-            const data = await resp.json();
-            if (data && data.access_token && data.refresh_token) {
-              store[id] = {
-                ...(store[id] || {}),
-                accessToken: data.access_token,
-                refreshToken: data.refresh_token,
-              };
-              updated = true;
-            }
-          } catch (err) {
-            // ignore; user can login manually
-          }
-        })
-      );
-      if (updated) localStorage.setItem(storeKey, JSON.stringify(store));
-    } catch (err) {
-      // ignore auto-login errors
-    }
-  })();
 })();

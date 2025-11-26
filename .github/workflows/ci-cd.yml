@@ -149,9 +149,6 @@ jobs:
         labels: ${{ steps.meta.outputs.labels }}
         cache-from: type=gha
         cache-to: type=gha,mode=max
-        build-args: |
-          FT_UI_USERNAME=${{ secrets.FT_UI_USERNAME }}
-          FT_UI_PASSWORD=${{ secrets.FT_UI_PASSWORD }}
 
     - name: Test UI image
       run: |
