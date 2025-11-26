@@ -21,6 +21,12 @@ services:
       - freqtrade-macd
       - freqtrade-customstoplosswithpsar
       - freqtrade-macdcci
+    links:
+      - freqtrade-ichiv1
+      - freqtrade-lookaheadstrategy
+      - freqtrade-macd
+      - freqtrade-customstoplosswithpsar
+      - freqtrade-macdcci
 
   freqtrade-ichiv1:
     image: ${DOCKER_REGISTRY:-ghcr.io}/haoweichan/freqtrade/freqtrade-bot:${IMAGE_TAG:-latest}

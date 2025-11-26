@@ -102,7 +102,7 @@ docker-compose -p "$COMPOSE_PROJECT_NAME" ps
 echo ""
 
 echo -e "${GREEN}Step 5: Cleaning up old Docker images...${NC}"
-docker image prune -f
+docker image prune -f || true
 echo ""
 
 echo -e "${GREEN}========================================${NC}"
