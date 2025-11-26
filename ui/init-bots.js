@@ -3,13 +3,14 @@
   // Dynamically determine the base URL using the current hostname
   // This works regardless of whether accessed via localhost, IP, or domain
   const baseUrl = `${window.location.protocol}//${window.location.hostname}`;
+  const port = window.location.port ? `:${window.location.port}` : '';
   
   const bots = [
-    { name: 'freqtrade-trader-ichi_v_1', url: `${baseUrl}:8080/api/ichiv1/` },
-    { name: 'freqtrade-trader-lookahead_strategy', url: `${baseUrl}:8080/api/lookaheadstrategy/` },
-    { name: 'freqtrade-trader-macd', url: `${baseUrl}:8080/api/macd/` },
-    { name: 'freqtrade-trader-custom_stoploss_with_psar', url: `${baseUrl}:8080/api/customstoplosswithpsar/` },
-    { name: 'freqtrade-trader-macdcci', url: `${baseUrl}:8080/api/macdcci/` },
+    { name: 'freqtrade-trader-ichi_v_1', url: `${baseUrl}${port}/api/ichiv1/` },
+    { name: 'freqtrade-trader-lookahead_strategy', url: `${baseUrl}${port}/api/lookaheadstrategy/` },
+    { name: 'freqtrade-trader-macd', url: `${baseUrl}${port}/api/macd/` },
+    { name: 'freqtrade-trader-custom_stoploss_with_psar', url: `${baseUrl}${port}/api/customstoplosswithpsar/` },
+    { name: 'freqtrade-trader-macdcci', url: `${baseUrl}${port}/api/macdcci/` },
   ];
 
   // Expose for UI components that might read this
