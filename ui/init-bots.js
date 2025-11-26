@@ -18,20 +18,38 @@
 
   // Seed localStorage so the bots list shows up immediately.
   // Authentication is intentionally NOT pre-filled to ensure security.
+  // However, we propagate tokens between bots to allow "Login Once" behavior.
   try {
     const storeKey = 'ftAuthLoginInfo';
     const existing = JSON.parse(localStorage.getItem(storeKey) || '{}');
+    
+    // Find a master token from any bot that has one
+    let masterToken = null;
+    for (const key in existing) {
+        if (existing[key].accessToken && existing[key].refreshToken) {
+            masterToken = { 
+                accessToken: existing[key].accessToken, 
+                refreshToken: existing[key].refreshToken,
+                username: existing[key].username
+            };
+            break;
+        }
+    }
+
     let changed = false;
     const entries = bots.map((b, idx) => {
       const id = `ftbot.${idx + 1}`;
       const current = existing[id] || {};
+      
+      // Use current token if exists, otherwise use master token (if available)
+      const tokenSource = (current.accessToken && current.refreshToken) ? current : (masterToken || {});
+
       const desired = {
         botName: b.name,
         apiUrl: b.url,
-        // Preserve existing auth if any, otherwise leave empty
-        username: current.username || '',
-        accessToken: current.accessToken || '',
-        refreshToken: current.refreshToken || '',
+        username: tokenSource.username || '',
+        accessToken: tokenSource.accessToken || '',
+        refreshToken: tokenSource.refreshToken || '',
         autoRefresh: true,
         sortId: idx,
       };
@@ -39,14 +57,15 @@
     });
 
     entries.forEach(({ id, desired }) => {
-      // Only update if the bot config (URL/Name) changed, preserving auth
-      if (existing[id]?.apiUrl !== desired.apiUrl || existing[id]?.botName !== desired.botName) {
-         // If URL changed, we might want to reset auth? 
-         // For now, just update the config part
-         existing[id] = { ...existing[id], ...desired };
-         changed = true;
-      } else if (!existing[id]) {
-         existing[id] = desired;
+      // Update if config changed OR if we are adding a missing token
+      const current = existing[id];
+      if (!current || 
+          current.apiUrl !== desired.apiUrl || 
+          current.botName !== desired.botName ||
+          (!current.accessToken && desired.accessToken) // Propagate token if missing
+      ) {
+         // Merge to preserve other fields if needed, but overwrite auth
+         existing[id] = { ...current, ...desired };
          changed = true;
       }
     });
