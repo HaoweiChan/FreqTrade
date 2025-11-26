@@ -550,41 +550,42 @@ jobs:
           IAP_FLAG=""
         fi
 
-        # Check if services are running on GCP VM using gcloud compute ssh
-        gcloud compute ssh "$GCP_VM_INSTANCE" \
-          --zone="$GCP_VM_ZONE" \
-          $IAP_FLAG \
-          --command="
-          # Check if freqtrade directory exists (should exist after deployment)
-          if [ ! -d \"/home/${{ secrets.GCP_VM_USER }}/freqtrade\" ]; then
-            echo '❌ Freqtrade directory not found after deployment'
-            exit 1
-          fi
-
-          cd /home/${{ secrets.GCP_VM_USER }}/freqtrade
-
-          echo '🔍 Checking Docker services status...'
-          if command -v docker &> /dev/null && command -v docker compose &> /dev/null; then
-            # Determine project name based on deployment type
-            if [[ '${{ github.ref }}' =~ ^refs/tags/v ]]; then
-              COMPOSE_PROJECT_NAME=\"freqtrade-production\"
-            else
-              COMPOSE_PROJECT_NAME=\"freqtrade-staging\"
+          # Check if services are running on GCP VM using gcloud compute ssh
+          # Use sudo to access docker socket
+          gcloud compute ssh "$GCP_VM_INSTANCE" \
+            --zone="$GCP_VM_ZONE" \
+            $IAP_FLAG \
+            --command="
+            # Check if freqtrade directory exists (should exist after deployment)
+            if [ ! -d \"/home/${{ secrets.GCP_VM_USER }}/freqtrade\" ]; then
+              echo '❌ Freqtrade directory not found after deployment'
+              exit 1
             fi
-            
-            if docker compose -p \"\$COMPOSE_PROJECT_NAME\" ps | grep -q \"Up\"; then
-              echo \"✅ Services are running on GCP VM (Project: \$COMPOSE_PROJECT_NAME)\"
-              docker compose -p \"\$COMPOSE_PROJECT_NAME\" ps
-            else
-              echo \"⚠️  No services appear to be running - check deployment\"
-              docker compose -p \"\$COMPOSE_PROJECT_NAME\" ps || echo \"Docker compose not available\"
-            fi
-          else
-            echo \"⚠️  Docker or docker-compose not available on VM\"
-          fi
 
-          echo '✅ Deployment verification completed'
-          "
+            cd /home/${{ secrets.GCP_VM_USER }}/freqtrade
+
+            echo '🔍 Checking Docker services status...'
+            if command -v docker &> /dev/null && command -v docker compose &> /dev/null; then
+              # Determine project name based on deployment type
+              if [[ '${{ github.ref }}' =~ ^refs/tags/v ]]; then
+                COMPOSE_PROJECT_NAME=\"freqtrade-production\"
+              else
+                COMPOSE_PROJECT_NAME=\"freqtrade-staging\"
+              fi
+              
+              if sudo docker compose -p \"\$COMPOSE_PROJECT_NAME\" ps | grep -q \"Up\"; then
+                echo \"✅ Services are running on GCP VM (Project: \$COMPOSE_PROJECT_NAME)\"
+                sudo docker compose -p \"\$COMPOSE_PROJECT_NAME\" ps
+              else
+                echo \"⚠️  No services appear to be running - check deployment\"
+                sudo docker compose -p \"\$COMPOSE_PROJECT_NAME\" ps || echo \"Docker compose not available\"
+              fi
+            else
+              echo \"⚠️  Docker or docker-compose not available on VM\"
+            fi
+
+            echo '✅ Deployment verification completed'
+            "
 
     - name: Fetch bot container logs
       run: |
@@ -662,7 +663,7 @@ jobs:
           
           echo ''
           echo \"=== Container Status (Project: \$COMPOSE_PROJECT_NAME) ===\"
-          docker compose -p \"\$COMPOSE_PROJECT_NAME\" ps || echo \"Failed to get container status\"
+          sudo docker compose -p \"\$COMPOSE_PROJECT_NAME\" ps || echo \"Failed to get container status\"
           
           echo ''
           echo \"=== Bot Logs (last 50 lines each) ===\"
@@ -671,10 +672,10 @@ jobs:
             echo ''
             echo \"📊 Logs for \$service:\"
             echo \"----------------------------------------\"
-            docker compose -p \"\$COMPOSE_PROJECT_NAME\" logs --tail=200 \$service 2>&1 || echo \"Failed to fetch logs for \$service\"
+            sudo docker compose -p \"\$COMPOSE_PROJECT_NAME\" logs --tail=200 \$service 2>&1 || echo \"Failed to fetch logs for \$service\"
             echo ''
             echo \"📊 Process info for \$service:\"
-            docker compose -p \"\$COMPOSE_PROJECT_NAME\" exec -T \$service ps aux 2>&1 || echo \"Failed to get process info\"
+            sudo docker compose -p \"\$COMPOSE_PROJECT_NAME\" exec -T \$service ps aux 2>&1 || echo \"Failed to get process info\"
             echo ''
           done
           " || echo "⚠️  Failed to fetch logs - deployment may have succeeded but log fetching failed"
