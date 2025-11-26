@@ -26,6 +26,10 @@ services:
     image: ${DOCKER_REGISTRY:-ghcr.io}/haoweichan/freqtrade/freqtrade-bot:${IMAGE_TAG:-latest}
     build: .
     container_name: freqtrade-trader-ichi_v1-DRYRUN-${DEPLOYMENT_ENV:-production}  # Clear mode indicator
+    networks:
+      default:
+        aliases:
+          - freqtrade-ichiv1
     restart: unless-stopped
     environment:
       - FREQTRADE__DRY_RUN=${ICHI_DRY_RUN:-true}  # Per-bot dry-run control
@@ -51,6 +55,10 @@ services:
     image: ${DOCKER_REGISTRY:-ghcr.io}/haoweichan/freqtrade/freqtrade-bot:${IMAGE_TAG:-latest}
     build: .
     container_name: freqtrade-trader-lookahead_strategy-DRYRUN-${DEPLOYMENT_ENV:-production}  # Clear mode indicator
+    networks:
+      default:
+        aliases:
+          - freqtrade-lookaheadstrategy
     restart: unless-stopped
     environment:
       - FREQTRADE__DRY_RUN=${LOOKAHEAD_DRY_RUN:-true}  # Per-bot dry-run control
@@ -76,6 +84,10 @@ services:
     image: ${DOCKER_REGISTRY:-ghcr.io}/haoweichan/freqtrade/freqtrade-bot:${IMAGE_TAG:-latest}
     build: .
     container_name: freqtrade-trader-macd-DRYRUN-${DEPLOYMENT_ENV:-production}  # Clear mode indicator
+    networks:
+      default:
+        aliases:
+          - freqtrade-macd
     restart: unless-stopped
     environment:
       - FREQTRADE__DRY_RUN=${MACD_DRY_RUN:-true}  # Per-bot dry-run control
@@ -101,6 +113,10 @@ services:
     image: ${DOCKER_REGISTRY:-ghcr.io}/haoweichan/freqtrade/freqtrade-bot:${IMAGE_TAG:-latest}
     build: .
     container_name: freqtrade-trader-custom_stoploss_with_psar-DRYRUN-${DEPLOYMENT_ENV:-production}  # Clear mode indicator
+    networks:
+      default:
+        aliases:
+          - freqtrade-customstoplosswithpsar
     restart: unless-stopped
     environment:
       - FREQTRADE__DRY_RUN=${PSAR_DRY_RUN:-true}  # Per-bot dry-run control
@@ -126,6 +142,10 @@ services:
     image: ${DOCKER_REGISTRY:-ghcr.io}/haoweichan/freqtrade/freqtrade-bot:${IMAGE_TAG:-latest}
     build: .
     container_name: freqtrade-trader-macdcci-DRYRUN-${DEPLOYMENT_ENV:-production}  # Clear mode indicator
+    networks:
+      default:
+        aliases:
+          - freqtrade-macdcci
     restart: unless-stopped
     environment:
       - FREQTRADE__DRY_RUN=${MACDCCI_DRY_RUN:-true}  # Per-bot dry-run control
