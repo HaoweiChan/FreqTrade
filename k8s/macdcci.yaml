@@ -101,7 +101,7 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: svc-macdcci
+  name: freqtrade-macdcci
 spec:
   selector:
     app: freqtrade
