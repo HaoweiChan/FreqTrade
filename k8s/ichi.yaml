@@ -1,0 +1,122 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: freqtrade-ichi
+  labels:
+    app: freqtrade
+    bot: ichi
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: freqtrade
+      bot: ichi
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app: freqtrade
+        bot: ichi
+    spec:
+      initContainers:
+      - name: fetch-strategies
+        image: alpine/git
+        env:
+        - name: GITHUB_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: freqtrade-secrets
+              key: github-token
+        command:
+        - sh
+        - -c
+        - |
+          git clone https://${GITHUB_TOKEN}@github.com/haoweichan/freqtrade.git /tmp/repo
+          mkdir -p /strategies
+          cp -r /tmp/repo/user_data/strategies/* /strategies/
+          ls -la /strategies
+        volumeMounts:
+        - name: strategies-vol
+          mountPath: /strategies
+      containers:
+      - name: freqtrade
+        image: ghcr.io/haoweichan/freqtrade/freqtrade-bot:latest
+        imagePullPolicy: Always
+        command: ["freqtrade", "trade", "--config", "/freqtrade/user_data/config.json", "--strategy", "ichiV1"]
+        env:
+        - name: FREQTRADE__DRY_RUN
+          value: "true" # Set to false for production
+        - name: FREQTRADE__TELEGRAM__ENABLED
+          value: "true"
+        - name: FREQTRADE__TELEGRAM__TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: freqtrade-secrets
+              key: telegram-token
+        - name: FREQTRADE__TELEGRAM__CHAT_ID
+          valueFrom:
+            secretKeyRef:
+              name: freqtrade-secrets
+              key: telegram-chat-id
+        - name: FREQTRADE__EXCHANGE__KEY
+          valueFrom:
+            secretKeyRef:
+              name: freqtrade-secrets
+              key: binance-key
+        - name: FREQTRADE__EXCHANGE__SECRET
+          valueFrom:
+            secretKeyRef:
+              name: freqtrade-secrets
+              key: binance-secret
+        ports:
+        - containerPort: 8080
+          name: api
+        volumeMounts:
+        - name: user-data
+          mountPath: /freqtrade/user_data
+        - name: config-vol
+          mountPath: /freqtrade/user_data/config.json
+          subPath: config.json
+        - name: strategies-vol
+          mountPath: /freqtrade/user_data/strategies
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "100m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+      volumes:
+      - name: user-data
+        persistentVolumeClaim:
+          claimName: pvc-ichi
+      - name: config-vol
+        configMap:
+          name: freqtrade-config
+      - name: strategies-vol
+        emptyDir: {}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: pvc-ichi
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 5Gi
+  storageClassName: standard-rwo # GKE default
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: svc-ichi
+spec:
+  selector:
+    app: freqtrade
+    bot: ichi
+  ports:
+  - port: 8080
+    targetPort: 8080

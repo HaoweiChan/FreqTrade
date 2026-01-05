@@ -135,6 +135,8 @@ ehthumbs_vista.db
 .env
 .env.*
 !.env.example
+!.env.test
+!.env.local
 
 # Python
 __pycache__/
@@ -205,3 +207,6 @@ user_data/*/*.sqlite*
 user_data/*/hyperopt_results/
 user_data/*/backtest_results/
 user_data/*/plot/
+# K8s generated secrets (DO NOT COMMIT)
+k8s/*-generated.yaml
+k8s/*-secrets.yaml

@@ -1,0 +1,111 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: freqtrade-psar
+  labels:
+    app: freqtrade
+    bot: psar
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: freqtrade
+      bot: psar
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app: freqtrade
+        bot: psar
+    spec:
+      initContainers:
+      - name: fetch-strategies
+        image: alpine/git
+        env:
+        - name: GITHUB_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: freqtrade-secrets
+              key: github-token
+        command:
+        - sh
+        - -c
+        - |
+          git clone https://${GITHUB_TOKEN}@github.com/haoweichan/freqtrade.git /tmp/repo
+          mkdir -p /strategies
+          cp -r /tmp/repo/user_data/strategies/* /strategies/
+        volumeMounts:
+        - name: strategies-vol
+          mountPath: /strategies
+      containers:
+      - name: freqtrade
+        image: ghcr.io/haoweichan/freqtrade/freqtrade-bot:latest
+        imagePullPolicy: Always
+        command: ["freqtrade", "trade", "--config", "/freqtrade/user_data/config.json", "--strategy", "CustomStoplossWithPSAR"]
+        env:
+        - name: FREQTRADE__DRY_RUN
+          value: "true"
+        - name: FREQTRADE__TELEGRAM__ENABLED
+          value: "false"
+        - name: FREQTRADE__EXCHANGE__KEY
+          valueFrom:
+            secretKeyRef:
+              name: freqtrade-secrets
+              key: binance-key
+        - name: FREQTRADE__EXCHANGE__SECRET
+          valueFrom:
+            secretKeyRef:
+              name: freqtrade-secrets
+              key: binance-secret
+        ports:
+        - containerPort: 8080
+          name: api
+        volumeMounts:
+        - name: user-data
+          mountPath: /freqtrade/user_data
+        - name: config-vol
+          mountPath: /freqtrade/user_data/config.json
+          subPath: config.json
+        - name: strategies-vol
+          mountPath: /freqtrade/user_data/strategies
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "100m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+      volumes:
+      - name: user-data
+        persistentVolumeClaim:
+          claimName: pvc-psar
+      - name: config-vol
+        configMap:
+          name: freqtrade-config
+      - name: strategies-vol
+        emptyDir: {}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: pvc-psar
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 5Gi
+  storageClassName: standard-rwo
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: svc-psar
+spec:
+  selector:
+    app: freqtrade
+    bot: psar
+  ports:
+  - port: 8080
+    targetPort: 8080
