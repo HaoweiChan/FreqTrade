@@ -42,6 +42,14 @@ spec:
           limits:
             memory: "256Mi"
             cpu: "200m"
+        volumeMounts:
+        - name: nginx-conf
+          mountPath: /etc/nginx/nginx.conf
+          subPath: nginx.conf
+      volumes:
+      - name: nginx-conf
+        configMap:
+          name: freqtrade-ui-nginx
 ---
 apiVersion: v1
 kind: Service
