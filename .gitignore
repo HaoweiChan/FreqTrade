@@ -210,3 +210,15 @@ user_data/*/plot/
 # K8s generated secrets (DO NOT COMMIT)
 k8s/*-generated.yaml
 k8s/*-secrets.yaml
+
+# Database files
+*.db
+*.db-journal
+*.db-shm
+*.db-wal
+
+# Markdown files (documentation/summaries)
+*.md
+!README.md
+!docs/*.md
+

@@ -16,6 +16,17 @@ import multiprocessing
 from pathlib import Path
 from datetime import datetime
 from typing import Dict, List, Optional
+import sys
+import os
+
+# Add parent directory to path to import local modules
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
+try:
+    from backtest_db import init_backtest_db, BacktestRun
+except ImportError:
+    print("Could not import backtest_db. Make sure backtest_db.py exists in strategy_tools/")
+    sys.exit(1)
 
 # Configure logging
 logging.basicConfig(
@@ -29,14 +40,14 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 class StrategyBacktester:
-    def __init__(self, config_path: str = "user_data/config.json", max_workers: int = None):
+    def __init__(self, config_path: str = "user_data/config.json", max_workers: int = None, use_db: bool = True, start_date: str = None, end_date: str = None):
         self.config_path = config_path
         self.results_dir = Path("user_data/backtest_results")
         self.results_dir.mkdir(parents=True, exist_ok=True)
         
-        # Backtest parameters
-        self.start_date = "20240101"
-        self.end_date = "20241231"
+        # Backtest parameters - allow override via constructor
+        self.start_date = start_date or "20240101"
+        self.end_date = end_date or "20241231"
         self.timeframe = "5m"
         
         # Parallel processing settings
@@ -46,13 +57,19 @@ class StrategyBacktester:
         self.strategy_timeout = 300  # 5 minutes per strategy
         self.discovery_timeout = 60  # 1 minute for strategy discovery
         
-        # Results storage
+        # Database
+        self.use_db = use_db
+        if self.use_db:
+            try:
+                self.db = init_backtest_db()
+                logger.info("Connected to backtest database")
+            except Exception as e:
+                logger.error(f"Failed to connect to database: {e}")
+                self.use_db = False
+        
+        # Results storage (memory cache)
         self.results = {}
         self.failed_strategies = []
-        
-        # Individual strategy results directory
-        self.individual_results_dir = self.results_dir / "individual_results"
-        self.individual_results_dir.mkdir(exist_ok=True)
         
         # Timeframe cache for strategy analysis
         self.timeframe_cache = {}
@@ -199,7 +216,20 @@ class StrategyBacktester:
         return self.individual_results_dir / f"{strategy_name}_result.json"
     
     def load_existing_result(self, strategy_name: str) -> Optional[Dict]:
-        """Load existing backtest result if it exists."""
+        """Load existing backtest result from DB or file."""
+        # Try DB first
+        if self.use_db:
+            try:
+                # Check if successful run exists for same config
+                if self.db.strategy_exists(strategy_name, self.start_date, self.end_date):
+                    result = self.db.get_latest_run_for_strategy(strategy_name)
+                    if result and result['status'] == 'SUCCESS':
+                        logger.info(f"✅ Found existing DB result for {strategy_name}")
+                        return result
+            except Exception as e:
+                logger.warning(f"Error checking DB for {strategy_name}: {e}")
+
+        # Fallback to file check
         result_file = self.get_strategy_result_file(strategy_name)
         if result_file.exists():
             try:
@@ -208,36 +238,69 @@ class StrategyBacktester:
                     # Verify the result is for the same time period
                     if (result.get('backtest_config', {}).get('start_date') == self.start_date and
                         result.get('backtest_config', {}).get('end_date') == self.end_date):
-                        logger.info(f"✅ Found existing result for {strategy_name}")
+                        logger.info(f"✅ Found existing file result for {strategy_name}")
                         return result
-                    else:
-                        logger.info(f"🔄 Existing result for {strategy_name} uses different parameters, will re-run")
-                        return None
             except Exception as e:
                 logger.warning(f"⚠️ Could not load existing result for {strategy_name}: {e}")
-                return None
+                
         return None
     
-    def save_strategy_result(self, strategy_name: str, result: Dict):
-        """Save strategy result to file."""
-        result_file = self.get_strategy_result_file(strategy_name)
-        try:
-            with open(result_file, 'w') as f:
-                json.dump(result, f, indent=2)
-            logger.info(f"💾 Saved result for {strategy_name}")
-        except Exception as e:
-            logger.error(f"❌ Failed to save result for {strategy_name}: {e}")
+    def save_strategy_result(self, strategy_name: str, result: Dict, run_id: int = None):
+        """Save strategy result to DB only."""
+        # Save to DB
+        if self.use_db and run_id:
+            try:
+                metadata = {
+                    'execution_time': result.get('execution_time'),
+                    'detected_timeframe': result.get('detected_timeframe'),
+                    'freqtrade_version': result.get('freqtrade_version'),
+                    'command_executed': result.get('command_executed')
+                }
+                self.db.save_success_result(run_id, result, metadata)
+                logger.info(f"💾 Saved DB result for {strategy_name}")
+            except Exception as e:
+                logger.error(f"❌ Failed to save DB result for {strategy_name}: {e}")
     
     def run_backtest_worker(self, strategy_name: str) -> Optional[Dict]:
         """Worker function for parallel processing of a single strategy."""
+        run_id = None
+        detected_timeframe = "5m"
+        
+        # Initialize DB connection in worker process (avoid pickling issues)
+        db = None
+        if self.use_db:
+            try:
+                db = init_backtest_db()
+            except Exception as e:
+                logger.error(f"Failed to init DB in worker for {strategy_name}: {e}")
+        
         try:
             # Check if we already have a result for this strategy
-            existing_result = self.load_existing_result(strategy_name)
-            if existing_result:
-                return existing_result
+            if db:
+                try:
+                    if db.strategy_exists(strategy_name, self.start_date, self.end_date):
+                        result = db.get_latest_run_for_strategy(strategy_name)
+                        if result and result['status'] == 'SUCCESS':
+                            logger.info(f"✅ Found existing DB result for {strategy_name}")
+                            return result
+                except Exception as e:
+                    logger.warning(f"Error checking DB for {strategy_name}: {e}")
             
             logger.info(f"🔄 Worker processing strategy: {strategy_name}")
             
+            # Create DB run entry
+            if db:
+                try:
+                    config = {
+                        'start_date': self.start_date,
+                        'end_date': self.end_date,
+                        'config_path': self.config_path
+                    }
+                    run_id = db.create_run(strategy_name, config)
+                    db.update_run_status(run_id, 'RUNNING')
+                except Exception as e:
+                    logger.error(f"Failed to create DB run for {strategy_name}: {e}")
+
             # Create individual results directory for this strategy
             strategy_results_dir = self.results_dir / strategy_name
             strategy_results_dir.mkdir(exist_ok=True)
@@ -292,8 +355,19 @@ class StrategyBacktester:
                 with open(strategy_results_dir / f"{strategy_name}_output.txt", 'w') as f:
                     f.write(result.stdout)
                 
-                # Save the result to file
-                self.save_strategy_result(strategy_name, full_result)
+                # Save the result
+                if db and run_id:
+                    try:
+                        metadata = {
+                            'execution_time': full_result.get('execution_time'),
+                            'detected_timeframe': full_result.get('detected_timeframe'),
+                            'freqtrade_version': full_result.get('freqtrade_version'),
+                            'command_executed': full_result.get('command_executed')
+                        }
+                        db.save_success_result(run_id, full_result, metadata)
+                        logger.info(f"💾 Saved DB result for {strategy_name}")
+                    except Exception as e:
+                        logger.error(f"❌ Failed to save DB result for {strategy_name}: {e}")
                 
                 logger.info(f"✅ {strategy_name} completed successfully in {end_time - start_time:.1f}s (timeframe: {detected_timeframe})")
                 return full_result
@@ -304,14 +378,12 @@ class StrategyBacktester:
                     'error': result.stderr,
                     'stdout': result.stdout,
                     'detected_timeframe': detected_timeframe,
-                    'failed_timestamp': datetime.now().isoformat(),
-                    'backtest_config': {
-                        'start_date': self.start_date,
-                        'end_date': self.end_date,
-                        'config_path': self.config_path,
-                        'timeframe': detected_timeframe
-                    }
+                    'failed_timestamp': datetime.now().isoformat()
                 }
+                
+                # Update DB failure
+                if db and run_id:
+                    db.save_failed_result(run_id, result.stderr, result.stdout)
                 
                 # Save failed result to file
                 failed_file = self.individual_results_dir / f"{strategy_name}_failed.json"
@@ -328,16 +400,14 @@ class StrategyBacktester:
                 
         except subprocess.TimeoutExpired:
             logger.error(f"⏰ {strategy_name} timed out after {self.strategy_timeout} seconds")
+            
+            if db and run_id:
+                db.save_failed_result(run_id, f"Timeout after {self.strategy_timeout}s")
+            
             failed_result = {
                 'strategy': strategy_name,
                 'error': f'Timeout after {self.strategy_timeout} seconds',
                 'stdout': '',
-                'failed_timestamp': datetime.now().isoformat(),
-                'backtest_config': {
-                    'start_date': self.start_date,
-                    'end_date': self.end_date,
-                    'config_path': self.config_path
-                }
             }
             
             # Save failed result to file
@@ -348,23 +418,18 @@ class StrategyBacktester:
             except Exception as e:
                 logger.error(f"Could not save failed result: {e}")
             
-            # Clean up empty strategy directory
-            strategy_results_dir = self.results_dir / strategy_name
-            self.cleanup_failed_strategy_directory(strategy_results_dir, strategy_name)
-            
             return None
+            
         except Exception as e:
             logger.error(f"💥 {strategy_name} error: {str(e)}")
+            
+            if db and run_id:
+                db.save_failed_result(run_id, str(e))
+                
             failed_result = {
                 'strategy': strategy_name,
                 'error': str(e),
                 'stdout': '',
-                'failed_timestamp': datetime.now().isoformat(),
-                'backtest_config': {
-                    'start_date': self.start_date,
-                    'end_date': self.end_date,
-                    'config_path': self.config_path
-                }
             }
             
             # Save failed result to file
@@ -374,10 +439,6 @@ class StrategyBacktester:
                     json.dump(failed_result, f, indent=2)
             except Exception as e:
                 logger.error(f"Could not save failed result: {e}")
-            
-            # Clean up empty strategy directory
-            strategy_results_dir = self.results_dir / strategy_name
-            self.cleanup_failed_strategy_directory(strategy_results_dir, strategy_name)
             
             return None
 
@@ -799,186 +860,66 @@ class StrategyBacktester:
         
         if strategies is None:
             if successful_only:
-                # Only use previously successful strategies
-                all_strategies = self.get_previously_successful_strategies()
-                if not all_strategies:
-                    logger.error("No previously successful strategies found! Run some backtests first or remove --successful-only flag.")
-                    return
-                logger.info(f"🎯 Focusing on {len(all_strategies)} previously successful strategies")
-                # For successful-only mode, we want to re-run all of them
-                strategies = all_strategies
+                logger.info("Running existing successful strategies only...")
+                strategies = self.get_previously_successful_strategies()
             else:
-                # Auto-discover all strategies
-                all_strategies = self.discover_strategies(compatible_only=compatible_only)
-                if not all_strategies:
-                    logger.error("No strategies discovered! Check your strategy directory.")
-                    return
-                
-                # Get strategies that need processing
-                strategies = self.get_strategies_to_process(all_strategies, include_failed=include_failed_retry)
-                
-                if not strategies:
-                    logger.info("🎉 All strategies have been successfully processed!")
-                    logger.info(f"Completed: {len(self.results)}, Failed: {len(self.failed_strategies)}")
-                    return
+                strategies = self.discover_strategies(compatible_only=compatible_only)
+        
+        if not strategies:
+            logger.warning("No strategies found to backtest!")
+            return
+        
+        # Filter strategies that need to be run
+        strategies_to_run = self.get_strategies_to_process(strategies, include_failed=include_failed_retry)
         
         if max_strategies:
-            strategies = strategies[:max_strategies]
-            logger.info(f"Limited to first {max_strategies} strategies")
+            logger.info(f"Limiting to {max_strategies} strategies")
+            strategies_to_run = strategies_to_run[:max_strategies]
         
-        total_strategies = len(strategies)
-        logger.info(f"Starting batch processing of {total_strategies} strategies...")
+        if not strategies_to_run:
+            logger.info("All strategies already processed!")
+            return
         
-        # Use parallel processing (workers=1 provides sequential behavior)
-        if len(strategies) > 1 and self.max_workers > 1:
-            # Use parallel processing with multiple workers
-            start_time = time.time()
-            results = self.run_parallel_backtests(strategies)
-            end_time = time.time()
-            
-            logger.info(f"🚀 Parallel processing completed in {end_time - start_time:.1f}s")
-            logger.info(f"Average time per strategy: {(end_time - start_time) / len(strategies):.1f}s")
-            
-        else:
-            # Use sequential processing (single worker or single strategy)
-            if self.max_workers == 1:
-                logger.info("Using sequential processing (1 worker)...")
-            else:
-                logger.info("Using sequential processing (single strategy)...")
-                
-            for i, strategy in enumerate(strategies, 1):
-                logger.info(f"📊 Progress: {i}/{total_strategies} ({(i/total_strategies)*100:.1f}%) - Processing {strategy}")
-                
-                result = self.run_backtest_worker(strategy)
-                if result:
-                    self.results[strategy] = result
-                    logger.info(f"✅ Successfully completed {strategy}")
-                else:
-                    logger.info(f"❌ Failed to complete {strategy}")
-        
-        # Final summary
-        self.collect_all_results()  # Reload to get latest counts
-        logger.info(f"🏁 Batch completed! Total successful: {len(self.results)}, Total failed: {len(self.failed_strategies)}")
-        
-        # Check if there are more strategies to process
-        if strategies is None or len(strategies) >= max_strategies if max_strategies else True:
-            remaining_strategies = self.get_strategies_to_process(self.discover_strategies(), include_failed=False)
-            if remaining_strategies:
-                logger.info(f"📋 {len(remaining_strategies)} strategies still pending for future runs")
-            else:
-                logger.info("🎉 All strategies have been processed!")
-        
-        # Clean up any empty directories from failed backtests
-        logger.info("🧹 Cleaning up empty directories...")
-        self.cleanup_empty_directories()
-                
-        # Report generation is handled separately by strategy_comparison.py
-    
-    def save_intermediate_results(self):
-        """Save intermediate results to prevent data loss."""
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        
-        # Save successful results
-        if self.results:
-            results_file = self.results_dir / f"intermediate_results_{timestamp}.json"
-            with open(results_file, 'w') as f:
-                json.dump(self.results, f, indent=2)
-        
-        # Save failed strategies
-        if self.failed_strategies:
-            failed_file = self.results_dir / f"failed_strategies_{timestamp}.json"
-            with open(failed_file, 'w') as f:
-                json.dump(self.failed_strategies, f, indent=2)
-
+        # Run parallel backtests
+        self.run_parallel_backtests(strategies_to_run)
 
 def main():
-    parser = argparse.ArgumentParser(description='Freqtrade Strategy Backtesting Tool')
-    parser.add_argument('--config', default='user_data/config.json', help='Config file path')
-    parser.add_argument('--max-strategies', type=int, help='Limit number of strategies to test per batch')
-    parser.add_argument('--strategy', help='Test specific strategy only')
-    parser.add_argument('--retry-failed', action='store_true', help='Include failed strategies for retry')
-    parser.add_argument('--continuous', action='store_true', help='Run continuously until all strategies are processed')
-    parser.add_argument('--compatible-only', action='store_true', help='Only test strategies compatible with current freqtrade version')
-    parser.add_argument('--successful-only', action='store_true', help='Only test strategies that were previously successful')
-    parser.add_argument('--workers', type=int, default=None, help='Number of workers for parallel processing (1 = sequential)')
+    parser = argparse.ArgumentParser(description="Run complete strategy backtest")
+    parser.add_argument("--strategies", nargs="+", help="Run specific strategies")
+    parser.add_argument("--limit", type=int, help="Limit number of strategies to run")
+    parser.add_argument("--max-workers", type=int, help="Maximum number of parallel workers")
+    parser.add_argument("--retry-failed", action="store_true", help="Retry failed strategies")
+    parser.add_argument("--compatible-only", action="store_true", help="Only run compatible strategies")
+    parser.add_argument("--successful-only", action="store_true", help="Only run previously successful strategies")
+    parser.add_argument("--no-db", action="store_true", help="Disable database storage")
+    parser.add_argument("--timerange", type=str, help="Timerange for backtest (format: YYYYMMDD-YYYYMMDD)")
     
     args = parser.parse_args()
     
-    backtester = StrategyBacktester(args.config, args.workers)
+    # Parse timerange if provided
+    start_date = None
+    end_date = None
+    if args.timerange:
+        try:
+            start_date, end_date = args.timerange.split('-')
+        except ValueError:
+            logger.error("Invalid timerange format. Use YYYYMMDD-YYYYMMDD")
+            sys.exit(1)
     
-    try:
-        if args.strategy:
-            # Test single strategy
-            strategies = [args.strategy]
-            backtester.run_all_backtests(strategies)
-        else:
-            # Auto-discover and process strategies
-            if args.continuous:
-                logger.info("🚀 Starting continuous backtesting mode...")
-                logger.info("Will process all pending/failed strategies until completion")
-                
-                batch_count = 0
-                while True:
-                    batch_count += 1
-                    logger.info(f"\n🔄 Starting batch #{batch_count}")
-                    
-                    # Load current state
-                    backtester.collect_all_results()
-                    all_strategies = backtester.discover_strategies(compatible_only=args.compatible_only)
-                    
-                    if not all_strategies:
-                        logger.error("No strategies discovered!")
-                        break
-                    
-                    # Get strategies to process
-                    strategies_to_run = backtester.get_strategies_to_process(
-                        all_strategies, 
-                        include_failed=args.retry_failed
-                    )
-                    
-                    if not strategies_to_run:
-                        logger.info("🎉 All strategies completed! Continuous mode finished.")
-                        break
-                    
-                    # Process batch
-                    batch_size = args.max_strategies or len(strategies_to_run)
-                    current_batch = strategies_to_run[:batch_size]
-                    
-                    backtester.run_all_backtests(
-                        current_batch, 
-                        max_strategies=batch_size,
-                        include_failed_retry=args.retry_failed,
-                        compatible_only=args.compatible_only,
-                        successful_only=args.successful_only
-                    )
-                    
-                    # Check if we should continue
-                    if not args.max_strategies or len(strategies_to_run) <= batch_size:
-                        logger.info("🏁 All remaining strategies processed!")
-                        break
-                    
-                    logger.info(f"✅ Batch #{batch_count} completed. Continuing to next batch...")
-            else:
-                # Single batch run
-                backtester.run_all_backtests(
-                    strategies=None, 
-                    max_strategies=args.max_strategies,
-                    include_failed_retry=args.retry_failed,
-                    compatible_only=args.compatible_only,
-                    successful_only=args.successful_only
-                )
-        
-        logger.info("✅ Backtesting completed successfully!")
-        logger.info(f"📊 Results saved in: {backtester.results_dir}")
-        logger.info(f"🔍 To analyze results, run: python strategy_tools/strategy_comparison.py")
-        
-    except KeyboardInterrupt:
-        logger.info("⏹️  Backtesting interrupted by user")
-        backtester.save_intermediate_results()
-        logger.info(f"🔍 To analyze completed results, run: python strategy_tools/strategy_comparison.py")
-    except Exception as e:
-        logger.error(f"💥 Unexpected error: {e}")
-        backtester.save_intermediate_results()
+    backtester = StrategyBacktester(
+        max_workers=args.max_workers,
+        use_db=not args.no_db,
+        start_date=start_date,
+        end_date=end_date
+    )
+    
+    backtester.run_all_backtests(
+        strategies=args.strategies,
+        max_strategies=args.limit,
+        include_failed_retry=args.retry_failed,
+        compatible_only=args.compatible_only,
+        successful_only=args.successful_only
+    )
 
 if __name__ == "__main__":
-    main() 
+    main()
